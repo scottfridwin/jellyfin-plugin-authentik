@@ -18,8 +18,9 @@ public class UserSyncServiceTests
         {
             Sub = "abc123",
             PreferredUsername = "testuser",
-            Groups = new List<string> { "jellyfin-users", "other-group" },
         };
+        userInfo.Groups.Add("jellyfin-users");
+        userInfo.Groups.Add("other-group");
 
         Assert.Contains("jellyfin-users", userInfo.Groups);
     }
@@ -31,8 +32,8 @@ public class UserSyncServiceTests
         {
             Sub = "abc456",
             PreferredUsername = "adminuser",
-            Groups = new List<string> { "jellyfin-admins" },
         };
+        userInfo.Groups.Add("jellyfin-admins");
 
         Assert.Contains("jellyfin-admins", userInfo.Groups);
     }
@@ -44,8 +45,8 @@ public class UserSyncServiceTests
         {
             Sub = "abc789",
             PreferredUsername = "outsider",
-            Groups = new List<string> { "unrelated-group" },
         };
+        userInfo.Groups.Add("unrelated-group");
 
         Assert.DoesNotContain("jellyfin-users", userInfo.Groups);
         Assert.DoesNotContain("jellyfin-admins", userInfo.Groups);

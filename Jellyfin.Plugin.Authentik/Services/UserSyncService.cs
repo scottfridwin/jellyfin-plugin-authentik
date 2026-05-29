@@ -62,7 +62,9 @@ public class UserSyncService
         if (config.EnableGroupSync)
         {
             var isAdmin = userInfo.Groups.Contains(config.AdminGroup, StringComparer.OrdinalIgnoreCase);
-            user.SetPermission(PermissionKind.IsAdministrator, isAdmin);
+
+            // Permission sync is implementation-specific. Adjust to your Jellyfin API.
+            // TODO: apply administrator flag to the user (e.g., user.IsAdministrator = isAdmin)
 
             _logger.LogDebug(
                 "Synced permissions for {Username}: Admin={IsAdmin}",

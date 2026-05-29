@@ -147,45 +147,47 @@ public class AuthentikController : ControllerBase
 
     private static string GenerateCallbackHtml(string state)
     {
-        return $"""
+        var template = """
             <!DOCTYPE html>
             <html>
             <head><title>Authentik SSO - Completing login...</title></head>
             <body>
                 <p>Completing login, please wait...</p>
                 <script>
-                    const state = '{state}';
+                    const state = '__STATE__';
                     const baseUrl = window.location.origin;
-                    fetch(baseUrl + '/authentik/auth', {{
+                    fetch(baseUrl + '/authentik/auth', {
                         method: 'POST',
-                        headers: {{ 'Content-Type': 'application/json' }},
-                        body: JSON.stringify({{
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
                             state: state,
                             deviceId: localStorage.getItem('_deviceId2') || crypto.randomUUID(),
                             deviceName: navigator.userAgent.substring(0, 50),
                             appName: 'Jellyfin Web',
                             appVersion: '10.11.0'
-                        }})
-                    }})
+                        })
+                    })
                     .then(r => r.json())
-                    .then(data => {{
-                        const credentials = {{
-                            Servers: [{{
+                    .then(data => {
+                        const credentials = {
+                            Servers: [{
                                 AccessToken: data.AccessToken,
                                 UserId: data.User.Id,
                                 Name: window.location.hostname
-                            }}]
-                        }};
+                            }]
+                        };
                         localStorage.setItem('jellyfin_credentials', JSON.stringify(credentials));
                         window.location.href = '/';
-                    }})
-                    .catch(err => {{
+                    })
+                    .catch(err => {
                         document.body.innerHTML = '<p>Login failed: ' + err.message + '</p>';
-                    }});
+                    });
                 </script>
             </body>
             </html>
             """;
+
+        return template.Replace("__STATE__", state, StringComparison.Ordinal);
     }
 
     private void CleanupExpired()
@@ -223,35 +225,4 @@ public class AuthentikController : ControllerBase
 
         public string? Username { get; set; }
     }
-}
-
-/// <summary>
-/// Request body for completing authentication from the client.
-/// </summary>
-public class AuthenticateRequest
-{
-    /// <summary>
-    /// Gets or sets the completion state token.
-    /// </summary>
-    public string? State { get; set; }
-
-    /// <summary>
-    /// Gets or sets the device ID.
-    /// </summary>
-    public string? DeviceId { get; set; }
-
-    /// <summary>
-    /// Gets or sets the device name.
-    /// </summary>
-    public string? DeviceName { get; set; }
-
-    /// <summary>
-    /// Gets or sets the app name.
-    /// </summary>
-    public string? AppName { get; set; }
-
-    /// <summary>
-    /// Gets or sets the app version.
-    /// </summary>
-    public string? AppVersion { get; set; }
 }
