@@ -12,5 +12,8 @@
       ]
     }
   },
+  "containerEnv": {
+    "DOTNET_SYSTEM_NET_DISABLEIPV6": "1"
+  },
   "postCreateCommand": "apt-get update && apt-get install -y keychain && dotnet restore"
 }
