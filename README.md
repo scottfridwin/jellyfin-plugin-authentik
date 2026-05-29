@@ -26,13 +26,17 @@ Single sign-on authentication for [Jellyfin](https://jellyfin.org/) using [Authe
 2. Click **+** to add a new repository
 3. Enter the repository URL:
    ```
-   https://github.com/scottfridwin/jellyfin-plugin-authentik/releases/latest/download/release-manifest.json
+   https://scottfridwin.github.io/jellyfin-plugin-authentik/manifest.json
    ```
 4. Go to **Dashboard → Plugins → Catalog**
 5. Search for **Authentik SSO** and click **Install**
 6. Restart Jellyfin
 
-> The plugin manifest is generated automatically by the release workflow and published as a release asset.
+> **Dev/testing builds:** To test pre-release builds, use this repository URL instead:
+> ```
+> https://scottfridwin.github.io/jellyfin-plugin-authentik/dev/manifest.json
+> ```
+> Dev builds are updated on every push to `main` and may be unstable.
 
 #### Manual Installation (Fallback)
 

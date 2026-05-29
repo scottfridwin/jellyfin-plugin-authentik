@@ -49,13 +49,15 @@ jobs:
         run: dotnet test --no-build --configuration Release --verbosity normal
 
   # ----------------------------------------------------------
-  # Build: Publish plugin artifact
+  # Build: Publish plugin artifact + dev manifest (on push to main)
   # ----------------------------------------------------------
   build:
     name: Build Plugin
     needs: test
     runs-on: ubuntu-latest
     if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.release_tag == '')
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout repository
@@ -71,7 +73,6 @@ jobs:
         run: |
           SHORT_SHA=$(echo "$GITHUB_SHA" | cut -c1-7)
           echo "short_sha=${SHORT_SHA}" >> "$GITHUB_OUTPUT"
-          # Extract version from build.yaml
           VERSION=$(grep '^version:' build.yaml | sed 's/.*"\(.*\)"/\1/')
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
 
@@ -83,6 +84,11 @@ jobs:
             --output=artifacts \
             -p:Version=${{ steps.version.outputs.version }}
 
+      - name: Create plugin zip
+        run: |
+          cd artifacts
+          zip -r "../${{ env.PLUGIN_NAME }}-dev-${{ steps.version.outputs.short_sha }}.zip" .
+
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
@@ -90,8 +96,56 @@ jobs:
           path: artifacts/
           if-no-files-found: error
 
+      - name: Publish dev manifest to GitHub Pages
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: |
+          PLUGIN_NAME="${{ env.PLUGIN_NAME }}"
+          VERSION="${{ steps.version.outputs.version }}"
+          SHORT_SHA="${{ steps.version.outputs.short_sha }}"
+          ZIP_NAME="${PLUGIN_NAME}-dev-${SHORT_SHA}.zip"
+          CHECKSUM="$(md5sum "${ZIP_NAME}" | awk '{print $1}')"
+          TIMESTAMP="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          SOURCE_URL="https://${{ github.repository_owner }}.github.io/jellyfin-plugin-authentik/dev/${ZIP_NAME}"
+
+          jq -n \
+            --arg version "${VERSION}-dev.${SHORT_SHA}" \
+            --arg sourceUrl "$SOURCE_URL" \
+            --arg checksum "$CHECKSUM" \
+            --arg timestamp "$TIMESTAMP" \
+            '[{
+              category: "Authentication",
+              description: "Single sign-on authentication for Jellyfin using Authentik as the OpenID Connect provider.",
+              guid: "f4c1d2a3-b5e6-4789-9abc-def012345678",
+              name: "Authentik SSO (Dev)",
+              overview: "Authenticate with Authentik OIDC (development build)",
+              owner: "scottfridwin",
+              versions: [{
+                version: $version,
+                targetAbi: "10.11.0.0",
+                sourceUrl: $sourceUrl,
+                checksum: $checksum,
+                timestamp: $timestamp,
+                changelog: ("Dev build " + $version)
+              }]
+            }]' > dev-manifest.json
+
+          # Deploy to gh-pages
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git stash --include-untracked
+          git fetch origin gh-pages:gh-pages 2>/dev/null && git checkout gh-pages || { git checkout --orphan gh-pages; git rm -rf . 2>/dev/null || true; }
+
+          mkdir -p dev
+          git stash pop 2>/dev/null || true
+          cp "${ZIP_NAME}" dev/ 2>/dev/null || cp "../${ZIP_NAME}" dev/ 2>/dev/null || true
+          cp dev-manifest.json dev/manifest.json 2>/dev/null || true
+
+          git add dev/
+          git commit -m "Update dev manifest (${SHORT_SHA})" --allow-empty
+          git push origin gh-pages
+
   # ----------------------------------------------------------
-  # Release: Create a versioned GitHub Release with plugin zip
+  # Release: Create GitHub Release + update stable manifest on gh-pages
   # ----------------------------------------------------------
   release:
     name: Release ${{ github.event.inputs.release_tag }}
@@ -126,6 +180,8 @@ jobs:
           VERSION="${VERSION_TAG#v}"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "tag=${VERSION_TAG}" >> "$GITHUB_OUTPUT"
+          TARGET_ABI=$(grep 'targetAbi:' build.yaml | sed 's/.*"\(.*\)"/\1/')
+          echo "target_abi=${TARGET_ABI}" >> "$GITHUB_OUTPUT"
 
       - name: Build plugin
         run: |
@@ -139,39 +195,6 @@ jobs:
         run: |
           cd artifacts
           zip -r "../${{ env.PLUGIN_NAME }}-${{ steps.version.outputs.version }}.zip" .
-
-      - name: Generate release manifest
-        run: |
-          PLUGIN_NAME="${{ env.PLUGIN_NAME }}"
-          VERSION="${{ steps.version.outputs.version }}"
-          TAG="${{ steps.version.outputs.tag }}"
-          ZIP_NAME="${PLUGIN_NAME}-${VERSION}.zip"
-          MANIFEST_NAME="release-manifest.json"
-          SOURCE_URL="https://github.com/${{ github.repository }}/releases/download/${TAG}/${ZIP_NAME}"
-          CHECKSUM="$(md5sum "${ZIP_NAME}" | awk '{print $1}')"
-          TIMESTAMP="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
-          jq -n \
-            --arg version "$VERSION" \
-            --arg sourceUrl "$SOURCE_URL" \
-            --arg checksum "$CHECKSUM" \
-            --arg timestamp "$TIMESTAMP" \
-            '[{
-              category: "Authentication",
-              description: "Single sign-on authentication for Jellyfin using Authentik as the OpenID Connect provider. Supports automatic user provisioning and group-based permission sync.",
-              guid: "f4c1d2a3-b5e6-4789-9abc-def012345678",
-              name: "Authentik SSO",
-              overview: "Authenticate with Authentik OIDC",
-              owner: "scottfridwin",
-              versions: [{
-                version: $version,
-                targetAbi: "10.11.0.0",
-                sourceUrl: $sourceUrl,
-                checksum: $checksum,
-                timestamp: $timestamp,
-                changelog: ("Release " + $version)
-              }]
-            }]' > "${MANIFEST_NAME}"
-          ls -l "${MANIFEST_NAME}"
 
       - name: Generate release notes
         run: |
@@ -207,5 +230,67 @@ jobs:
           body_path: /tmp/release-notes.md
           files: |
             ${{ env.PLUGIN_NAME }}-${{ steps.version.outputs.version }}.zip
-            release-manifest.json
           generate_release_notes: false
+
+      - name: Update stable manifest on GitHub Pages
+        run: |
+          PLUGIN_NAME="${{ env.PLUGIN_NAME }}"
+          VERSION="${{ steps.version.outputs.version }}"
+          TAG="${{ steps.version.outputs.tag }}"
+          TARGET_ABI="${{ steps.version.outputs.target_abi }}"
+          ZIP_NAME="${PLUGIN_NAME}-${VERSION}.zip"
+          SOURCE_URL="https://github.com/${{ github.repository }}/releases/download/${TAG}/${ZIP_NAME}"
+          CHECKSUM="$(md5sum "${ZIP_NAME}" | awk '{print $1}')"
+          TIMESTAMP="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+
+          NEW_VERSION=$(jq -n \
+            --arg version "$VERSION" \
+            --arg targetAbi "$TARGET_ABI" \
+            --arg sourceUrl "$SOURCE_URL" \
+            --arg checksum "$CHECKSUM" \
+            --arg timestamp "$TIMESTAMP" \
+            '{
+              version: $version,
+              targetAbi: $targetAbi,
+              sourceUrl: $sourceUrl,
+              checksum: $checksum,
+              timestamp: $timestamp,
+              changelog: ("Release " + $version)
+            }')
+
+          # Switch to gh-pages
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git stash --include-untracked
+          git fetch origin gh-pages:gh-pages 2>/dev/null && git checkout gh-pages || { git checkout --orphan gh-pages; git rm -rf . 2>/dev/null || true; }
+
+          # Merge new version into existing manifest (one entry per targetAbi)
+          if [ -f manifest.json ]; then
+            EXISTING=$(cat manifest.json)
+          else
+            EXISTING='[]'
+          fi
+
+          echo "$EXISTING" | jq \
+            --argjson newVersion "$NEW_VERSION" \
+            '
+            if length == 0 then
+              [{
+                category: "Authentication",
+                description: "Single sign-on authentication for Jellyfin using Authentik as the OpenID Connect provider. Supports automatic user provisioning and group-based permission sync.",
+                guid: "f4c1d2a3-b5e6-4789-9abc-def012345678",
+                name: "Authentik SSO",
+                overview: "Authenticate with Authentik OIDC",
+                owner: "scottfridwin",
+                versions: [$newVersion]
+              }]
+            else
+              .[0].versions = (
+                [.[0].versions[] | select(.targetAbi != $newVersion.targetAbi)] + [$newVersion]
+              ) | .
+            end
+            ' > manifest.json
+
+          git add manifest.json
+          git commit -m "Update stable manifest for ${TAG}" --allow-empty
+          git push origin gh-pages
