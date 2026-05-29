@@ -36,7 +36,7 @@ Single sign-on authentication for [Jellyfin](https://jellyfin.org/) using [Authe
 > ```
 > https://scottfridwin.github.io/jellyfin-plugin-authentik/dev/manifest.json
 > ```
-> Dev builds are updated on every push to `main` and may be unstable.
+> Dev builds are updated on every push to the `dev` branch and may be unstable.
 
 #### Manual Installation (Fallback)
 
