@@ -1,0 +1,20 @@
+[
+  {
+    "category": "Authentication",
+    "description": "Single sign-on authentication for Jellyfin using Authentik as the OpenID Connect provider.",
+    "guid": "f4c1d2a3-b5e6-4789-9abc-def012345678",
+    "name": "Authentik SSO (Dev)",
+    "overview": "Authenticate with Authentik OIDC (development build)",
+    "owner": "scottfridwin",
+    "versions": [
+      {
+        "version": "1.0.0.0-dev.fb0b22a",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://scottfridwin.github.io/jellyfin-plugin-authentik/dev/Jellyfin.Plugin.Authentik-dev-fb0b22a.zip",
+        "checksum": "239743b1edf25a4383b9a33c17c88d55",
+        "timestamp": "2026-05-29T19:54:39Z",
+        "changelog": "Dev build 1.0.0.0-dev.fb0b22a"
+      }
+    ]
+  }
+]
