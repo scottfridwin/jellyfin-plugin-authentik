@@ -148,29 +148,29 @@ jobs:
           ZIP_NAME="${PLUGIN_NAME}-${VERSION}.zip"
           MANIFEST_NAME="release-manifest.json"
           SOURCE_URL="https://github.com/${{ github.repository }}/releases/download/${TAG}/${ZIP_NAME}"
-          CHECKSUM="$(sha256sum "${ZIP_NAME}" | awk '{print $1}')"
-          cat > "${MANIFEST_NAME}" <<EOF
-          [
-            {
-              "category": "Authentication",
-              "description": "Single sign-on authentication for Jellyfin using Authentik as the OpenID Connect provider. Supports automatic user provisioning and group-based permission sync.",
-              "guid": "f4c1d2a3-b5e6-4789-9abc-def012345678",
-              "name": "Authentik SSO",
-              "overview": "Authenticate with Authentik OIDC",
-              "owner": "scottfridwin",
-              "versions": [
-                {
-                  "version": "${VERSION}",
-                  "targetAbi": "10.11.0.0",
-                  "sourceUrl": "${SOURCE_URL}",
-                  "checksum": "${CHECKSUM}",
-                  "timestamp": "$(date -u +'%Y-%m-%dT%H:%M:%SZ')",
-                  "changelog": "Release ${VERSION}"
-                }
-              ]
-            }
-          ]
-          EOF
+          CHECKSUM="$(md5sum "${ZIP_NAME}" | awk '{print $1}')"
+          TIMESTAMP="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          jq -n \
+            --arg version "$VERSION" \
+            --arg sourceUrl "$SOURCE_URL" \
+            --arg checksum "$CHECKSUM" \
+            --arg timestamp "$TIMESTAMP" \
+            '[{
+              category: "Authentication",
+              description: "Single sign-on authentication for Jellyfin using Authentik as the OpenID Connect provider. Supports automatic user provisioning and group-based permission sync.",
+              guid: "f4c1d2a3-b5e6-4789-9abc-def012345678",
+              name: "Authentik SSO",
+              overview: "Authenticate with Authentik OIDC",
+              owner: "scottfridwin",
+              versions: [{
+                version: $version,
+                targetAbi: "10.11.0.0",
+                sourceUrl: $sourceUrl,
+                checksum: $checksum,
+                timestamp: $timestamp,
+                changelog: ("Release " + $version)
+              }]
+            }]' > "${MANIFEST_NAME}"
           ls -l "${MANIFEST_NAME}"
 
       - name: Generate release notes
