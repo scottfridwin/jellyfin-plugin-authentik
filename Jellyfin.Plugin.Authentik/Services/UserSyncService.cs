@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Threading.Tasks;
+using Jellyfin.Data;
 using Jellyfin.Database.Implementations.Enums;
 using Jellyfin.Plugin.Authentik.Configuration;
 using MediaBrowser.Controller.Library;
@@ -63,8 +64,7 @@ public class UserSyncService
         {
             var isAdmin = userInfo.Groups.Contains(config.AdminGroup, StringComparer.OrdinalIgnoreCase);
 
-            // Permission sync is implementation-specific. Adjust to your Jellyfin API.
-            // TODO: apply administrator flag to the user (e.g., user.IsAdministrator = isAdmin)
+            user.SetPermission(PermissionKind.IsAdministrator, isAdmin);
 
             _logger.LogDebug(
                 "Synced permissions for {Username}: Admin={IsAdmin}",
