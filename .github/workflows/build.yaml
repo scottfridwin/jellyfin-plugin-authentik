@@ -140,6 +140,39 @@ jobs:
           cd artifacts
           zip -r "../${{ env.PLUGIN_NAME }}-${{ steps.version.outputs.version }}.zip" .
 
+      - name: Generate release manifest
+        run: |
+          PLUGIN_NAME="${{ env.PLUGIN_NAME }}"
+          VERSION="${{ steps.version.outputs.version }}"
+          TAG="${{ steps.version.outputs.tag }}"
+          ZIP_NAME="${PLUGIN_NAME}-${VERSION}.zip"
+          MANIFEST_NAME="release-manifest.json"
+          SOURCE_URL="https://github.com/${{ github.repository }}/releases/download/${TAG}/${ZIP_NAME}"
+          CHECKSUM="$(sha256sum "${ZIP_NAME}" | awk '{print $1}')"
+          cat > "${MANIFEST_NAME}" <<EOF
+          [
+            {
+              "category": "Authentication",
+              "description": "Single sign-on authentication for Jellyfin using Authentik as the OpenID Connect provider. Supports automatic user provisioning and group-based permission sync.",
+              "guid": "f4c1d2a3-b5e6-4789-9abc-def012345678",
+              "name": "Authentik SSO",
+              "overview": "Authenticate with Authentik OIDC",
+              "owner": "scottfridwin",
+              "versions": [
+                {
+                  "version": "${VERSION}",
+                  "targetAbi": "10.11.0.0",
+                  "sourceUrl": "${SOURCE_URL}",
+                  "checksum": "${CHECKSUM}",
+                  "timestamp": "$(date -u +'%Y-%m-%dT%H:%M:%SZ')",
+                  "changelog": "Release ${VERSION}"
+                }
+              ]
+            }
+          ]
+          EOF
+          ls -l "${MANIFEST_NAME}"
+
       - name: Generate release notes
         run: |
           VERSION_TAG="${{ steps.version.outputs.tag }}"
@@ -172,5 +205,7 @@ jobs:
         with:
           tag_name: ${{ steps.version.outputs.tag }}
           body_path: /tmp/release-notes.md
-          files: ${{ env.PLUGIN_NAME }}-${{ steps.version.outputs.version }}.zip
+          files: |
+            ${{ env.PLUGIN_NAME }}-${{ steps.version.outputs.version }}.zip
+            release-manifest.json
           generate_release_notes: false
