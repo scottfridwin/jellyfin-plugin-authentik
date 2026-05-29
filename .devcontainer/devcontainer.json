@@ -12,5 +12,5 @@
       ]
     }
   },
-  "postCreateCommand": "dotnet restore"
+  "postCreateCommand": "apt-get update && apt-get install -y keychain && dotnet restore"
 }
