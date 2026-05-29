@@ -1,18 +1,176 @@
-name: '🏗️ Build Plugin'
+name: Build and Release Plugin
 
 on:
   push:
     branches:
-      - master
+      - main
     paths-ignore:
-      - '**/*.md'
+      - "**/*.md"
   pull_request:
     branches:
-      - master
+      - main
     paths-ignore:
-      - '**/*.md'
+      - "**/*.md"
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Version tag to release (e.g., v1.0.0). Leave empty to just build."
+        required: false
+        type: string
+
+env:
+  DOTNET_VERSION: "9.0.x"
+  PLUGIN_NAME: "Jellyfin.Plugin.Authentik"
 
 jobs:
-  call:
-    uses: jellyfin/jellyfin-meta-plugins/.github/workflows/build.yaml@master
+  # ----------------------------------------------------------
+  # Test: Build and run unit tests
+  # ----------------------------------------------------------
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --no-restore --configuration Release
+
+      - name: Run tests
+        run: dotnet test --no-build --configuration Release --verbosity normal
+
+  # ----------------------------------------------------------
+  # Build: Publish plugin artifact
+  # ----------------------------------------------------------
+  build:
+    name: Build Plugin
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.release_tag == '')
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Determine version
+        id: version
+        run: |
+          SHORT_SHA=$(echo "$GITHUB_SHA" | cut -c1-7)
+          echo "short_sha=${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+          # Extract version from build.yaml
+          VERSION=$(grep '^version:' build.yaml | sed 's/.*"\(.*\)"/\1/')
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Build plugin
+        run: |
+          dotnet publish \
+            "${{ env.PLUGIN_NAME }}/${{ env.PLUGIN_NAME }}.csproj" \
+            --configuration=Release \
+            --output=artifacts \
+            -p:Version=${{ steps.version.outputs.version }}
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.PLUGIN_NAME }}-${{ steps.version.outputs.short_sha }}
+          path: artifacts/
+          if-no-files-found: error
+
+  # ----------------------------------------------------------
+  # Release: Create a versioned GitHub Release with plugin zip
+  # ----------------------------------------------------------
+  release:
+    name: Release ${{ github.event.inputs.release_tag }}
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.release_tag != ''
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Verify main branch
+        run: |
+          if [[ "$GITHUB_REF" != "refs/heads/main" ]]; then
+            echo "::error::Release can only be triggered from the main branch (got $GITHUB_REF)"
+            exit 1
+          fi
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Determine version
+        id: version
+        run: |
+          VERSION_TAG="${{ github.event.inputs.release_tag }}"
+          VERSION="${VERSION_TAG#v}"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=${VERSION_TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Build plugin
+        run: |
+          dotnet publish \
+            "${{ env.PLUGIN_NAME }}/${{ env.PLUGIN_NAME }}.csproj" \
+            --configuration=Release \
+            --output=artifacts \
+            -p:Version=${{ steps.version.outputs.version }}
+
+      - name: Create plugin zip
+        run: |
+          cd artifacts
+          zip -r "../${{ env.PLUGIN_NAME }}-${{ steps.version.outputs.version }}.zip" .
+
+      - name: Generate release notes
+        run: |
+          VERSION_TAG="${{ steps.version.outputs.tag }}"
+          PREV_TAG=$(git tag --sort=-version:refname | grep '^v' | grep -v "^${VERSION_TAG}$" | head -1)
+          if [ -n "$PREV_TAG" ]; then
+            NOTES=$(git log --pretty=format:"- %s (%h)" "${PREV_TAG}..HEAD" | head -50)
+          else
+            NOTES="Initial release"
+          fi
+          {
+            echo "$NOTES"
+            echo ""
+            echo "## Installation"
+            echo ""
+            echo "Download the zip file below and extract it into your Jellyfin plugins directory:"
+            echo '```'
+            echo "<jellyfin-data>/plugins/${{ env.PLUGIN_NAME }}/"
+            echo '```'
+            echo ""
+            echo "Then restart Jellyfin."
+          } > /tmp/release-notes.md
+
+      - name: Create git tag
+        run: |
+          git tag "${{ steps.version.outputs.tag }}"
+          git push origin "${{ steps.version.outputs.tag }}"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          body_path: /tmp/release-notes.md
+          files: ${{ env.PLUGIN_NAME }}-${{ steps.version.outputs.version }}.zip
+          generate_release_notes: false
