@@ -19,6 +19,7 @@ public class PluginConfiguration : BasePluginConfiguration
         AllowedGroup = "jellyfin-users";
         AutoCreateUsers = true;
         EnableGroupSync = true;
+        RedirectSchemeOverride = string.Empty;
     }
 
     /// <summary>
@@ -45,6 +46,15 @@ public class PluginConfiguration : BasePluginConfiguration
     /// Gets or sets the Authentik group name that grants basic Jellyfin access.
     /// </summary>
     public string AllowedGroup { get; set; }
+
+    /// <summary>
+    /// Gets or sets the scheme (http/https) to use when building the redirect URI.
+    /// When empty, the scheme from the incoming request is used. Set this to "https" if your
+    /// reverse proxy terminates TLS but forwards requests to Jellyfin over plain HTTP, which
+    /// causes the redirect URI sent to Authentik to use "http" instead of "https" and triggers
+    /// a redirect_uri mismatch error.
+    /// </summary>
+    public string RedirectSchemeOverride { get; set; }
 
     /// <summary>
     /// Gets or sets a value indicating whether users should be auto-created on first login.

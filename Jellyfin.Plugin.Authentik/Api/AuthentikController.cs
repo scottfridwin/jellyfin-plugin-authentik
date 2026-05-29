@@ -204,15 +204,20 @@ public class AuthentikController : ControllerBase
 
     private string GetBaseUrl()
     {
+        var config = Plugin.Instance!.Configuration;
+        var scheme = string.IsNullOrWhiteSpace(config.RedirectSchemeOverride)
+            ? Request.Scheme
+            : config.RedirectSchemeOverride.Trim().ToLowerInvariant();
+
         var port = Request.Host.Port ?? -1;
-        if ((port == 80 && Request.Scheme == "http") || (port == 443 && Request.Scheme == "https"))
+        if ((port == 80 && scheme == "http") || (port == 443 && scheme == "https"))
         {
             port = -1;
         }
 
         return new UriBuilder
         {
-            Scheme = Request.Scheme,
+            Scheme = scheme,
             Host = Request.Host.Host,
             Port = port,
             Path = Request.PathBase,
