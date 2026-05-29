@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Authentik SSO</title>
+</head>
+<body>
+    <div id="AuthentikSSOConfigPage" data-role="page" class="page type-interior pluginConfigurationPage"
+         data-require="emby-input,emby-button,emby-checkbox">
+        <div data-role="content">
+            <div class="content-primary">
+                <form id="AuthentikSSOConfigForm">
+                    <div class="sectionTitleContainer flex align-items-center">
+                        <h2 class="sectionTitle">Authentik SSO Configuration</h2>
+                    </div>
+
+                    <div class="inputContainer">
+                        <label class="inputLabel" for="txtAuthentikUrl">Authentik URL</label>
+                        <input id="txtAuthentikUrl" type="url" is="emby-input"
+                               placeholder="https://auth.example.com" />
+                        <div class="fieldDescription">The base URL of your Authentik instance.</div>
+                    </div>
+
+                    <div class="inputContainer">
+                        <label class="inputLabel" for="txtClientId">Client ID</label>
+                        <input id="txtClientId" type="text" is="emby-input" />
+                        <div class="fieldDescription">The OAuth2/OIDC Client ID from your Authentik application.</div>
+                    </div>
+
+                    <div class="inputContainer">
+                        <label class="inputLabel" for="txtClientSecret">Client Secret</label>
+                        <input id="txtClientSecret" type="password" is="emby-input" />
+                        <div class="fieldDescription">The OAuth2/OIDC Client Secret from your Authentik application.</div>
+                    </div>
+
+                    <div class="inputContainer">
+                        <label class="inputLabel" for="txtAdminGroup">Admin Group</label>
+                        <input id="txtAdminGroup" type="text" is="emby-input" value="jellyfin-admins" />
+                        <div class="fieldDescription">Authentik group whose members get Jellyfin admin privileges.</div>
+                    </div>
+
+                    <div class="inputContainer">
+                        <label class="inputLabel" for="txtAllowedGroup">Allowed Group</label>
+                        <input id="txtAllowedGroup" type="text" is="emby-input" value="jellyfin-users" />
+                        <div class="fieldDescription">Authentik group whose members are allowed to log in.</div>
+                    </div>
+
+                    <div class="checkboxContainer">
+                        <label>
+                            <input id="chkAutoCreate" type="checkbox" is="emby-checkbox" checked />
+                            <span>Auto-create users on first login</span>
+                        </label>
+                    </div>
+
+                    <div class="checkboxContainer">
+                        <label>
+                            <input id="chkGroupSync" type="checkbox" is="emby-checkbox" checked />
+                            <span>Sync Authentik groups to Jellyfin permissions on each login</span>
+                        </label>
+                    </div>
+
+                    <div>
+                        <button is="emby-button" type="submit" class="raised button-submit block">
+                            <span>Save</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <script type="text/javascript">
+            const pluginId = 'f4c1d2a3-b5e6-4789-9abc-def012345678';
+
+            document.querySelector('#AuthentikSSOConfigPage')
+                .addEventListener('pageshow', function () {
+                    ApiClient.getPluginConfiguration(pluginId).then(function (config) {
+                        document.querySelector('#txtAuthentikUrl').value = config.AuthentikUrl || '';
+                        document.querySelector('#txtClientId').value = config.ClientId || '';
+                        document.querySelector('#txtClientSecret').value = config.ClientSecret || '';
+                        document.querySelector('#txtAdminGroup').value = config.AdminGroup || 'jellyfin-admins';
+                        document.querySelector('#txtAllowedGroup').value = config.AllowedGroup || 'jellyfin-users';
+                        document.querySelector('#chkAutoCreate').checked = config.AutoCreateUsers;
+                        document.querySelector('#chkGroupSync').checked = config.EnableGroupSync;
+                    });
+                });
+
+            document.querySelector('#AuthentikSSOConfigForm')
+                .addEventListener('submit', function (e) {
+                    e.preventDefault();
+                    ApiClient.getPluginConfiguration(pluginId).then(function (config) {
+                        config.AuthentikUrl = document.querySelector('#txtAuthentikUrl').value;
+                        config.ClientId = document.querySelector('#txtClientId').value;
+                        config.ClientSecret = document.querySelector('#txtClientSecret').value;
+                        config.AdminGroup = document.querySelector('#txtAdminGroup').value;
+                        config.AllowedGroup = document.querySelector('#txtAllowedGroup').value;
+                        config.AutoCreateUsers = document.querySelector('#chkAutoCreate').checked;
+                        config.EnableGroupSync = document.querySelector('#chkGroupSync').checked;
+                        ApiClient.updatePluginConfiguration(pluginId, config).then(function () {
+                            Dashboard.processPluginConfigurationUpdateResult();
+                        });
+                    });
+                    return false;
+                });
+        </script>
+    </div>
+</body>
+</html>
