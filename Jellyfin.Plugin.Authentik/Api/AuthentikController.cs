@@ -205,9 +205,7 @@ public class AuthentikController : ControllerBase
     private string GetBaseUrl()
     {
         var config = Plugin.Instance!.Configuration;
-        var scheme = string.IsNullOrWhiteSpace(config.RedirectSchemeOverride)
-            ? Request.Scheme
-            : config.RedirectSchemeOverride.Trim().ToLowerInvariant();
+        var scheme = config.ForceHttpsRedirect ? "https" : Request.Scheme;
 
         var port = Request.Host.Port ?? -1;
         if ((port == 80 && scheme == "http") || (port == 443 && scheme == "https"))

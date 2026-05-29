@@ -44,15 +44,15 @@
                         <div class="fieldDescription">Authentik group whose members are allowed to log in.</div>
                     </div>
 
-                    <div class="inputContainer">
-                        <label class="inputLabel" for="txtRedirectSchemeOverride">Redirect URI Scheme Override</label>
-                        <input id="txtRedirectSchemeOverride" type="text" is="emby-input"
-                               placeholder="https" />
+                    <div class="checkboxContainer">
+                        <label>
+                            <input id="chkForceHttps" type="checkbox" is="emby-checkbox" />
+                            <span>Force HTTPS in redirect URI (enable if behind a reverse proxy)</span>
+                        </label>
                         <div class="fieldDescription">
-                            Leave blank unless you are getting a <strong>redirect_uri mismatch</strong> error from Authentik.
-                            If your reverse proxy handles HTTPS but forwards to Jellyfin over HTTP, the plugin builds
-                            a callback URL starting with "http://" which won't match the "https://" redirect URI
-                            registered in Authentik. Set this to <code>https</code> to force the correct scheme.
+                            Check this if Jellyfin is behind a reverse proxy that handles HTTPS.
+                            Without this, the callback URL sent to Authentik will use "http://"
+                            instead of "https://", causing a redirect_uri mismatch error.
                         </div>
                     </div>
 
@@ -90,7 +90,7 @@
                         document.querySelector('#txtClientSecret').value = config.ClientSecret || '';
                         document.querySelector('#txtAdminGroup').value = config.AdminGroup || 'jellyfin-admins';
                         document.querySelector('#txtAllowedGroup').value = config.AllowedGroup || 'jellyfin-users';
-                        document.querySelector('#txtRedirectSchemeOverride').value = config.RedirectSchemeOverride || '';
+                        document.querySelector('#chkForceHttps').checked = config.ForceHttpsRedirect;
                         document.querySelector('#chkAutoCreate').checked = config.AutoCreateUsers;
                         document.querySelector('#chkGroupSync').checked = config.EnableGroupSync;
                     });
@@ -105,7 +105,7 @@
                         config.ClientSecret = document.querySelector('#txtClientSecret').value;
                         config.AdminGroup = document.querySelector('#txtAdminGroup').value;
                         config.AllowedGroup = document.querySelector('#txtAllowedGroup').value;
-                        config.RedirectSchemeOverride = document.querySelector('#txtRedirectSchemeOverride').value;
+                        config.ForceHttpsRedirect = document.querySelector('#chkForceHttps').checked;
                         config.AutoCreateUsers = document.querySelector('#chkAutoCreate').checked;
                         config.EnableGroupSync = document.querySelector('#chkGroupSync').checked;
                         ApiClient.updatePluginConfiguration(pluginId, config).then(function () {
