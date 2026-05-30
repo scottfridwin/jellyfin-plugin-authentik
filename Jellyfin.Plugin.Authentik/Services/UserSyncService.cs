@@ -85,13 +85,31 @@ public class UserSyncService
     {
         var config = Plugin.Instance!.Configuration;
 
+        _logger.LogDebug(
+            "Checking authorization for {Username}. Groups received: [{Groups}]",
+            userInfo.PreferredUsername,
+            string.Join(", ", userInfo.Groups));
+
         // If no allowed group is configured, allow all authenticated users
         if (string.IsNullOrWhiteSpace(config.AllowedGroup))
         {
+            _logger.LogDebug("No AllowedGroup configured, granting access to {Username}", userInfo.PreferredUsername);
             return true;
         }
 
-        return userInfo.Groups.Contains(config.AllowedGroup, StringComparer.OrdinalIgnoreCase)
+        var isAllowed = userInfo.Groups.Contains(config.AllowedGroup, StringComparer.OrdinalIgnoreCase)
             || userInfo.Groups.Contains(config.AdminGroup, StringComparer.OrdinalIgnoreCase);
+
+        if (!isAllowed)
+        {
+            _logger.LogWarning(
+                "User {Username} denied access. Required group: '{AllowedGroup}' or '{AdminGroup}'. User groups: [{Groups}]",
+                userInfo.PreferredUsername,
+                config.AllowedGroup,
+                config.AdminGroup,
+                string.Join(", ", userInfo.Groups));
+        }
+
+        return isAllowed;
     }
 }

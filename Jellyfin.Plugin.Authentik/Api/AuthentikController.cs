@@ -97,6 +97,11 @@ public class AuthentikController : ControllerBase
             return Problem("Failed to retrieve user information from Authentik.");
         }
 
+        _logger.LogInformation(
+            "OIDC callback for user {Username}, groups: [{Groups}]",
+            userInfo.PreferredUsername,
+            string.Join(", ", userInfo.Groups));
+
         if (!_userSyncService.IsAuthorized(userInfo))
         {
             return Unauthorized("You are not authorized to access Jellyfin. Check your Authentik group membership.");
@@ -169,15 +174,18 @@ public class AuthentikController : ControllerBase
                     })
                     .then(r => r.json())
                     .then(data => {
-                        const credentials = {
-                            Servers: [{
-                                AccessToken: data.AccessToken,
-                                UserId: data.User.Id,
-                                Name: window.location.hostname
-                            }]
+                        const server = {
+                            ManualAddress: window.location.origin,
+                            Id: data.ServerId,
+                            AccessToken: data.AccessToken,
+                            UserId: data.User.Id,
+                            Name: window.location.hostname
                         };
+                        const credentials = { Servers: [server] };
                         localStorage.setItem('jellyfin_credentials', JSON.stringify(credentials));
-                        window.location.href = '/';
+                        // Also set the key Jellyfin Web 10.11+ uses
+                        localStorage.setItem('_jellyfin_credentials', JSON.stringify(credentials));
+                        window.location.href = '/web/#/home.html';
                     })
                     .catch(err => {
                         document.body.innerHTML = '<p>Login failed: ' + err.message + '</p>';
