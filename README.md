@@ -63,6 +63,17 @@ After installation:
 
 Navigate to `https://your-jellyfin-url/authentik/start` to initiate SSO login.
 
+### Login Button (Optional)
+
+The plugin can add a "Sign in with Authentik" button to the Jellyfin login page. To enable it:
+
+1. Go to **Dashboard → General → Custom JavaScript**
+2. Add this one line:
+   ```javascript
+   import('/authentik/login.js');
+   ```
+3. Save. The button will appear on the login page immediately (no restart needed).
+
 ## Development
 
 ### Prerequisites

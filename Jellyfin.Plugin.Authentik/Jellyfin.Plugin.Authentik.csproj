@@ -29,6 +29,8 @@
   <ItemGroup>
     <None Remove="Configuration\configPage.html" />
     <EmbeddedResource Include="Configuration\configPage.html" />
+    <None Remove="Api\loginButton.js" />
+    <EmbeddedResource Include="Api\loginButton.js" />
   </ItemGroup>
 
 </Project>
