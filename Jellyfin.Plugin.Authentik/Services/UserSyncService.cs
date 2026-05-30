@@ -65,6 +65,7 @@ public class UserSyncService
             var isAdmin = userInfo.Groups.Contains(config.AdminGroup, StringComparer.OrdinalIgnoreCase);
 
             user.SetPermission(PermissionKind.IsAdministrator, isAdmin);
+            user.SetPermission(PermissionKind.EnableAllFolders, true);
             user.SetPermission(PermissionKind.EnableContentDeletion, isAdmin);
             user.SetPermission(PermissionKind.EnableRemoteControlOfOtherUsers, isAdmin);
 
