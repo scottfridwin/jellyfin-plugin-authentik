@@ -231,4 +231,4 @@ Open in VS Code with the Dev Containers extension for a pre-configured developme
 
 ## License
 
-MIT
+GPL-3.0 — see [LICENSE](LICENSE) for details.
