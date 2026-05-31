@@ -2,11 +2,10 @@ using System;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Threading.Tasks;
-using Jellyfin.Data;
-using Jellyfin.Database.Implementations.Enums;
 using Jellyfin.Plugin.Authentik.Configuration;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Model.Cryptography;
+using MediaBrowser.Model.Users;
 using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.Authentik.Services;
@@ -60,23 +59,38 @@ public class UserSyncService
                 Convert.ToBase64String(RandomNumberGenerator.GetBytes(64))).ToString();
         }
 
+        await _userManager.UpdateUserAsync(user).ConfigureAwait(false);
+
         if (config.EnableGroupSync)
         {
             var isAdmin = userInfo.Groups.Contains(config.AdminGroup, StringComparer.OrdinalIgnoreCase);
 
-            user.SetPermission(PermissionKind.EnableAllFolders, true);
+            var policy = new UserPolicy
+            {
+                IsAdministrator = isAdmin,
+                EnableAllFolders = true,
+                EnableRemoteControlOfOtherUsers = isAdmin,
+                EnableLiveTvManagement = isAdmin,
+                EnableLiveTvAccess = true,
+                EnableMediaPlayback = true,
+                EnableAudioPlaybackTranscoding = true,
+                EnableVideoPlaybackTranscoding = true,
+                EnablePlaybackRemuxing = true,
+                EnableContentDeletion = isAdmin,
+                EnableRemoteAccess = true,
+                EnableAllChannels = true,
+                EnableAllDevices = true,
+                EnableSharedDeviceControl = true,
+            };
 
-            user.SetPermission(PermissionKind.IsAdministrator, isAdmin);
-            user.SetPermission(PermissionKind.EnableRemoteControlOfOtherUsers, isAdmin);
-            user.SetPermission(PermissionKind.EnableLiveTvManagement, isAdmin);
+            await _userManager.UpdatePolicyAsync(user.Id, policy).ConfigureAwait(false);
 
-            _logger.LogDebug(
+            _logger.LogInformation(
                 "Synced permissions for {Username}: Admin={IsAdmin}",
                 username,
                 isAdmin);
         }
 
-        await _userManager.UpdateUserAsync(user).ConfigureAwait(false);
         return user.Id;
     }
 
