@@ -45,24 +45,6 @@ public class AuthentikController : ControllerBase
     }
 
     /// <summary>
-    /// Serves the login button JavaScript for injection into the Jellyfin web UI.
-    /// </summary>
-    /// <returns>The login button script.</returns>
-    [HttpGet("login.js")]
-    [Produces("application/javascript")]
-    public ActionResult LoginScript()
-    {
-        var assembly = typeof(AuthentikController).Assembly;
-        var stream = assembly.GetManifestResourceStream("Jellyfin.Plugin.Authentik.Api.loginButton.js");
-        if (stream == null)
-        {
-            return NotFound();
-        }
-
-        return File(stream, "application/javascript");
-    }
-
-    /// <summary>
     /// Initiates the OIDC login flow by redirecting to Authentik.
     /// </summary>
     /// <returns>A redirect to the Authentik authorization endpoint.</returns>
