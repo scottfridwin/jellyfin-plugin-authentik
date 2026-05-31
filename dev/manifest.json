@@ -10,9 +10,9 @@
       {
         "version": "1.0.0.0",
         "targetAbi": "10.11.0.0",
-        "sourceUrl": "https://scottfridwin.github.io/jellyfin-plugin-authentik/dev/Jellyfin.Plugin.Authentik-dev-310b90e.zip",
-        "checksum": "d4f1a66cc7e54beefd66b2f619e14fd0",
-        "timestamp": "2026-05-31T02:20:56Z",
+        "sourceUrl": "https://scottfridwin.github.io/jellyfin-plugin-authentik/dev/Jellyfin.Plugin.Authentik-dev-bca803d.zip",
+        "checksum": "289f6387d0387c340506efd4a43d29d3",
+        "timestamp": "2026-05-31T02:33:45Z",
         "changelog": "Dev build 1.0.0.0"
       }
     ]
