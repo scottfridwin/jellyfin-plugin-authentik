@@ -43,7 +43,8 @@ public class PluginConfiguration : BasePluginConfiguration
     public string AdminGroup { get; set; }
 
     /// <summary>
-    /// Gets or sets the Authentik group name that grants basic Jellyfin access.
+    /// Gets or sets the Authentik group name required to access Jellyfin.
+    /// Leave empty to allow all authenticated Authentik users.
     /// </summary>
     public string AllowedGroup { get; set; }
 

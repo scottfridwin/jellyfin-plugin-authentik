@@ -64,14 +64,14 @@ After installation, go to **Dashboard → Plugins → Authentik SSO** and config
 | **Client ID** | From the Authentik OAuth2 provider | *(required)* |
 | **Client Secret** | From the Authentik OAuth2 provider | *(required)* |
 | **Admin Group** | Authentik group name for Jellyfin admins | `jellyfin-admins` |
-| **Allowed Group** | Authentik group name for Jellyfin access | `jellyfin-users` |
+| **Required Group** | Authentik group required to log in (leave blank to allow all Authentik users) | `jellyfin-users` |
 | **Auto-Create Users** | Create Jellyfin accounts on first SSO login | `true` |
 | **Enable Group Sync** | Sync Authentik groups → Jellyfin permissions on each login | `true` |
 | **Force HTTPS Redirect** | Force `https://` in the OAuth callback URI (enable if behind a TLS-terminating reverse proxy) | `false` |
 
 ## Usage
 
-Navigate to `https://your-jellyfin-url/authentik/start` to initiate SSO login.
+Navigate to `https://your-jellyfin-url/authentik/login` to initiate SSO login.
 
 ### Login Button (Optional)
 
@@ -82,7 +82,7 @@ To add a "Sign in with Authentik" button on the login page, use two Jellyfin set
 Paste this HTML:
 
 ```html
-<form action="/authentik/start" class="sso-login-form">
+<form action="/authentik/login" class="sso-login-form">
   <button type="submit" class="sso-login-btn">
     Sign in with Authentik
   </button>
@@ -137,7 +137,7 @@ Paste this CSS (customize as needed):
 **Add a logo image inside the button** — modify the Login Disclaimer HTML:
 
 ```html
-<form action="/authentik/start" class="sso-login-form">
+<form action="/authentik/login" class="sso-login-form">
   <button type="submit" class="sso-login-btn">
     <img src="https://your-domain.com/logo.svg" alt="" class="sso-login-logo">
     Sign in with Authentik
@@ -188,7 +188,7 @@ The intermediate "Completing login..." page uses a dark theme by default and res
 
 ## How It Works
 
-1. User clicks "Sign in with Authentik" (or navigates to `/authentik/start`)
+1. User clicks "Sign in with Authentik" (or navigates to `/authentik/login`)
 2. Plugin generates a PKCE code verifier/challenge and redirects to Authentik
 3. User authenticates in Authentik
 4. Authentik redirects back to `/authentik/callback` with an authorization code

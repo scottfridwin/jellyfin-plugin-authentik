@@ -39,9 +39,9 @@
                     </div>
 
                     <div class="inputContainer">
-                        <label class="inputLabel" for="txtAllowedGroup">Allowed Group</label>
+                        <label class="inputLabel" for="txtAllowedGroup">Required Group</label>
                         <input id="txtAllowedGroup" type="text" is="emby-input" value="jellyfin-users" />
-                        <div class="fieldDescription">Authentik group whose members are allowed to log in.</div>
+                        <div class="fieldDescription">Authentik group required to access Jellyfin. Leave blank to allow all authenticated Authentik users. Members of the Admin Group are always allowed regardless of this setting.</div>
                     </div>
 
                     <div class="checkboxContainer">

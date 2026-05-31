@@ -48,7 +48,7 @@ public class AuthentikController : ControllerBase
     /// Initiates the OIDC login flow by redirecting to Authentik.
     /// </summary>
     /// <returns>A redirect to the Authentik authorization endpoint.</returns>
-    [HttpGet("start")]
+    [HttpGet("login")]
     public ActionResult Start()
     {
         CleanupExpired();
