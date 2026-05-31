@@ -81,6 +81,8 @@ public class UserSyncService
                 EnableAllChannels = true,
                 EnableAllDevices = true,
                 EnableSharedDeviceControl = true,
+                AuthenticationProviderId = user.AuthenticationProviderId,
+                PasswordResetProviderId = user.PasswordResetProviderId,
             };
 
             await _userManager.UpdatePolicyAsync(user.Id, policy).ConfigureAwait(false);
