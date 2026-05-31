@@ -155,9 +155,56 @@ public class AuthentikController : ControllerBase
         var template = """
             <!DOCTYPE html>
             <html>
-            <head><title>Authentik SSO - Completing login...</title></head>
+            <head>
+                <meta charset="utf-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1">
+                <title>Authentik SSO - Completing login...</title>
+                <link rel="stylesheet" href="/web/custom.css" type="text/css">
+                <style>
+                    :root {
+                        --sso-bg: #101010;
+                        --sso-text: #d1cfce;
+                        --sso-accent: #00a4dc;
+                    }
+                    @media (prefers-color-scheme: light) {
+                        :root {
+                            --sso-bg: #f0f0f0;
+                            --sso-text: #333;
+                            --sso-accent: #00a4dc;
+                        }
+                    }
+                    * { margin: 0; padding: 0; box-sizing: border-box; }
+                    body {
+                        background: var(--sso-bg);
+                        color: var(--sso-text);
+                        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        min-height: 100vh;
+                    }
+                    .sso-container {
+                        text-align: center;
+                        padding: 2rem;
+                    }
+                    .sso-spinner {
+                        width: 40px;
+                        height: 40px;
+                        border: 3px solid var(--sso-text);
+                        border-top-color: var(--sso-accent);
+                        border-radius: 50%;
+                        animation: spin 0.8s linear infinite;
+                        margin: 0 auto 1rem;
+                    }
+                    @keyframes spin { to { transform: rotate(360deg); } }
+                    .sso-error { color: #f44336; margin-top: 1rem; }
+                </style>
+            </head>
             <body>
-                <p>Completing login, please wait...</p>
+                <div class="sso-container">
+                    <div class="sso-spinner"></div>
+                    <p>Completing login, please wait...</p>
+                </div>
                 <script>
                     const state = '__STATE__';
                     const baseUrl = window.location.origin;
@@ -183,12 +230,13 @@ public class AuthentikController : ControllerBase
                         };
                         const credentials = { Servers: [server] };
                         localStorage.setItem('jellyfin_credentials', JSON.stringify(credentials));
-                        // Also set the key Jellyfin Web 10.11+ uses
                         localStorage.setItem('_jellyfin_credentials', JSON.stringify(credentials));
                         window.location.href = '/web/#/home.html';
                     })
                     .catch(err => {
-                        document.body.innerHTML = '<p>Login failed: ' + err.message + '</p>';
+                        document.querySelector('.sso-spinner').style.display = 'none';
+                        document.querySelector('.sso-container').innerHTML +=
+                            '<p class="sso-error">Login failed: ' + err.message + '</p>';
                     });
                 </script>
             </body>
