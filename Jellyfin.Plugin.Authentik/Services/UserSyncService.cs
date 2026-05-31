@@ -2,11 +2,10 @@ using System;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Threading.Tasks;
-using Jellyfin.Data;
-using Jellyfin.Database.Implementations.Enums;
 using Jellyfin.Plugin.Authentik.Configuration;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Model.Cryptography;
+using MediaBrowser.Model.Users;
 using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.Authentik.Services;
@@ -60,19 +59,40 @@ public class UserSyncService
                 Convert.ToBase64String(RandomNumberGenerator.GetBytes(64))).ToString();
         }
 
+        await _userManager.UpdateUserAsync(user).ConfigureAwait(false);
+
         if (config.EnableGroupSync)
         {
             var isAdmin = userInfo.Groups.Contains(config.AdminGroup, StringComparer.OrdinalIgnoreCase);
 
-            user.SetPermission(PermissionKind.IsAdministrator, isAdmin);
+            var policy = new UserPolicy
+            {
+                IsAdministrator = isAdmin,
+                EnableAllFolders = true,
+                EnableRemoteControlOfOtherUsers = isAdmin,
+                EnableLiveTvManagement = isAdmin,
+                EnableLiveTvAccess = true,
+                EnableMediaPlayback = true,
+                EnableAudioPlaybackTranscoding = true,
+                EnableVideoPlaybackTranscoding = true,
+                EnablePlaybackRemuxing = true,
+                EnableContentDeletion = isAdmin,
+                EnableRemoteAccess = true,
+                EnableAllChannels = true,
+                EnableAllDevices = true,
+                EnableSharedDeviceControl = true,
+                AuthenticationProviderId = user.AuthenticationProviderId,
+                PasswordResetProviderId = user.PasswordResetProviderId,
+            };
 
-            _logger.LogDebug(
+            await _userManager.UpdatePolicyAsync(user.Id, policy).ConfigureAwait(false);
+
+            _logger.LogInformation(
                 "Synced permissions for {Username}: Admin={IsAdmin}",
                 username,
                 isAdmin);
         }
 
-        await _userManager.UpdateUserAsync(user).ConfigureAwait(false);
         return user.Id;
     }
 
@@ -85,13 +105,31 @@ public class UserSyncService
     {
         var config = Plugin.Instance!.Configuration;
 
+        _logger.LogDebug(
+            "Checking authorization for {Username}. Groups received: [{Groups}]",
+            userInfo.PreferredUsername,
+            string.Join(", ", userInfo.Groups));
+
         // If no allowed group is configured, allow all authenticated users
         if (string.IsNullOrWhiteSpace(config.AllowedGroup))
         {
+            _logger.LogDebug("No AllowedGroup configured, granting access to {Username}", userInfo.PreferredUsername);
             return true;
         }
 
-        return userInfo.Groups.Contains(config.AllowedGroup, StringComparer.OrdinalIgnoreCase)
+        var isAllowed = userInfo.Groups.Contains(config.AllowedGroup, StringComparer.OrdinalIgnoreCase)
             || userInfo.Groups.Contains(config.AdminGroup, StringComparer.OrdinalIgnoreCase);
+
+        if (!isAllowed)
+        {
+            _logger.LogWarning(
+                "User {Username} denied access. Required group: '{AllowedGroup}' or '{AdminGroup}'. User groups: [{Groups}]",
+                userInfo.PreferredUsername,
+                config.AllowedGroup,
+                config.AdminGroup,
+                string.Join(", ", userInfo.Groups));
+        }
+
+        return isAllowed;
     }
 }

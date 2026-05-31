@@ -48,7 +48,7 @@ public class AuthentikController : ControllerBase
     /// Initiates the OIDC login flow by redirecting to Authentik.
     /// </summary>
     /// <returns>A redirect to the Authentik authorization endpoint.</returns>
-    [HttpGet("start")]
+    [HttpGet("login")]
     public ActionResult Start()
     {
         CleanupExpired();
@@ -96,6 +96,11 @@ public class AuthentikController : ControllerBase
         {
             return Problem("Failed to retrieve user information from Authentik.");
         }
+
+        _logger.LogInformation(
+            "OIDC callback for user {Username}, groups: [{Groups}]",
+            userInfo.PreferredUsername,
+            string.Join(", ", userInfo.Groups));
 
         if (!_userSyncService.IsAuthorized(userInfo))
         {
@@ -150,9 +155,56 @@ public class AuthentikController : ControllerBase
         var template = """
             <!DOCTYPE html>
             <html>
-            <head><title>Authentik SSO - Completing login...</title></head>
+            <head>
+                <meta charset="utf-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1">
+                <title>Authentik SSO - Completing login...</title>
+                <link rel="stylesheet" href="/web/custom.css" type="text/css">
+                <style>
+                    :root {
+                        --sso-bg: #101010;
+                        --sso-text: #d1cfce;
+                        --sso-accent: #00a4dc;
+                    }
+                    @media (prefers-color-scheme: light) {
+                        :root {
+                            --sso-bg: #f0f0f0;
+                            --sso-text: #333;
+                            --sso-accent: #00a4dc;
+                        }
+                    }
+                    * { margin: 0; padding: 0; box-sizing: border-box; }
+                    body {
+                        background: var(--sso-bg);
+                        color: var(--sso-text);
+                        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        min-height: 100vh;
+                    }
+                    .sso-container {
+                        text-align: center;
+                        padding: 2rem;
+                    }
+                    .sso-spinner {
+                        width: 40px;
+                        height: 40px;
+                        border: 3px solid var(--sso-text);
+                        border-top-color: var(--sso-accent);
+                        border-radius: 50%;
+                        animation: spin 0.8s linear infinite;
+                        margin: 0 auto 1rem;
+                    }
+                    @keyframes spin { to { transform: rotate(360deg); } }
+                    .sso-error { color: #f44336; margin-top: 1rem; }
+                </style>
+            </head>
             <body>
-                <p>Completing login, please wait...</p>
+                <div class="sso-container">
+                    <div class="sso-spinner"></div>
+                    <p>Completing login, please wait...</p>
+                </div>
                 <script>
                     const state = '__STATE__';
                     const baseUrl = window.location.origin;
@@ -169,18 +221,22 @@ public class AuthentikController : ControllerBase
                     })
                     .then(r => r.json())
                     .then(data => {
-                        const credentials = {
-                            Servers: [{
-                                AccessToken: data.AccessToken,
-                                UserId: data.User.Id,
-                                Name: window.location.hostname
-                            }]
+                        const server = {
+                            ManualAddress: window.location.origin,
+                            Id: data.ServerId,
+                            AccessToken: data.AccessToken,
+                            UserId: data.User.Id,
+                            Name: window.location.hostname
                         };
+                        const credentials = { Servers: [server] };
                         localStorage.setItem('jellyfin_credentials', JSON.stringify(credentials));
-                        window.location.href = '/';
+                        localStorage.setItem('_jellyfin_credentials', JSON.stringify(credentials));
+                        window.location.href = '/web/#/home.html';
                     })
                     .catch(err => {
-                        document.body.innerHTML = '<p>Login failed: ' + err.message + '</p>';
+                        document.querySelector('.sso-spinner').style.display = 'none';
+                        document.querySelector('.sso-container').innerHTML +=
+                            '<p class="sso-error">Login failed: ' + err.message + '</p>';
                     });
                 </script>
             </body>
@@ -204,15 +260,18 @@ public class AuthentikController : ControllerBase
 
     private string GetBaseUrl()
     {
+        var config = Plugin.Instance!.Configuration;
+        var scheme = config.ForceHttpsRedirect ? "https" : Request.Scheme;
+
         var port = Request.Host.Port ?? -1;
-        if ((port == 80 && Request.Scheme == "http") || (port == 443 && Request.Scheme == "https"))
+        if ((port == 80 && scheme == "http") || (port == 443 && scheme == "https"))
         {
             port = -1;
         }
 
         return new UriBuilder
         {
-            Scheme = Request.Scheme,
+            Scheme = scheme,
             Host = Request.Host.Host,
             Port = port,
             Path = Request.PathBase,

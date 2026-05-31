@@ -19,6 +19,7 @@ public class PluginConfiguration : BasePluginConfiguration
         AllowedGroup = "jellyfin-users";
         AutoCreateUsers = true;
         EnableGroupSync = true;
+        ForceHttpsRedirect = false;
     }
 
     /// <summary>
@@ -42,9 +43,17 @@ public class PluginConfiguration : BasePluginConfiguration
     public string AdminGroup { get; set; }
 
     /// <summary>
-    /// Gets or sets the Authentik group name that grants basic Jellyfin access.
+    /// Gets or sets the Authentik group name required to access Jellyfin.
+    /// Leave empty to allow all authenticated Authentik users.
     /// </summary>
     public string AllowedGroup { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether to force HTTPS in the redirect URI.
+    /// Enable this if Jellyfin is behind a reverse proxy that terminates TLS, otherwise
+    /// the callback URL will use http:// and cause a redirect_uri mismatch in Authentik.
+    /// </summary>
+    public bool ForceHttpsRedirect { get; set; }
 
     /// <summary>
     /// Gets or sets a value indicating whether users should be auto-created on first login.

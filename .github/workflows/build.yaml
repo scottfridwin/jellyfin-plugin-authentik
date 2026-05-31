@@ -109,7 +109,7 @@ jobs:
           SOURCE_URL="https://${{ github.repository_owner }}.github.io/jellyfin-plugin-authentik/dev/${ZIP_NAME}"
 
           jq -n \
-            --arg version "${VERSION}-dev.${SHORT_SHA}" \
+            --arg version "${VERSION}" \
             --arg sourceUrl "$SOURCE_URL" \
             --arg checksum "$CHECKSUM" \
             --arg timestamp "$TIMESTAMP" \

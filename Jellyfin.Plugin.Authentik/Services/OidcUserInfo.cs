@@ -33,8 +33,9 @@ public class OidcUserInfo
     public string? Name { get; set; }
 
     /// <summary>
-    /// Gets the groups the user belongs to.
+    /// Gets or sets the groups the user belongs to.
     /// </summary>
     [JsonPropertyName("groups")]
-    public Collection<string> Groups { get; } = new();
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Usage", "CA2227:Collection properties should be read only", Justification = "Needs setter for System.Text.Json deserialization")]
+    public Collection<string> Groups { get; set; } = new();
 }
