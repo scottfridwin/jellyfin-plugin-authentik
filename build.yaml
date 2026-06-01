@@ -1,7 +1,6 @@
 ---
 name: "Authentik SSO"
 guid: "f4c1d2a3-b5e6-4789-9abc-def012345678"
-version: "1.0.0.0"
 targetAbi: "10.11.0.0"
 framework: "net9.0"
 overview: "Single sign-on authentication via Authentik OIDC"
