@@ -214,6 +214,19 @@ public class UserSyncService
             Directory.CreateDirectory(userDataPath);
 
             var imagePath = Path.Combine(userDataPath, "profile" + extension);
+
+            // Skip if the image hasn't changed (compare SHA256 hash)
+            if (File.Exists(imagePath))
+            {
+                var existingHash = Convert.ToHexString(SHA256.HashData(await File.ReadAllBytesAsync(imagePath).ConfigureAwait(false)));
+                var newHash = Convert.ToHexString(SHA256.HashData(imageBytes));
+                if (string.Equals(existingHash, newHash, StringComparison.OrdinalIgnoreCase))
+                {
+                    _logger.LogDebug("Profile image unchanged for {Username}, skipping sync", user.Username);
+                    return;
+                }
+            }
+
             await File.WriteAllBytesAsync(imagePath, imageBytes).ConfigureAwait(false);
 
             if (user.ProfileImage is not null)
