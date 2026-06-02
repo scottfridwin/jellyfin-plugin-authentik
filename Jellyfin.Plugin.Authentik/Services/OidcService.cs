@@ -122,6 +122,7 @@ public class OidcService
         var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
         var userInfo = System.Text.Json.JsonSerializer.Deserialize<OidcUserInfo>(json);
 
+        _logger.LogDebug("json: ${Json}", json);
         _logger.LogDebug("config.ProfileImageClaim: ${ClaimPath}", config.ProfileImageClaim);
         if (userInfo is not null && !string.IsNullOrWhiteSpace(config.ProfileImageClaim))
         {
