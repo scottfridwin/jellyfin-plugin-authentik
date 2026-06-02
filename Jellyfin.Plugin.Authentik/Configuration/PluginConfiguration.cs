@@ -20,7 +20,7 @@ public class PluginConfiguration : BasePluginConfiguration
         AutoCreateUsers = true;
         EnableGroupSync = true;
         EnableProfileImageSync = true;
-        ProfileImageClaim = "attributes.avatar";
+        ProfileImageClaim = "picture";
         ForceHttpsRedirect = false;
     }
 
