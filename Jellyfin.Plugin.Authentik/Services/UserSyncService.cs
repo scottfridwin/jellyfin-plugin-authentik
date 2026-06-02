@@ -103,6 +103,8 @@ public class UserSyncService
                 isAdmin);
         }
 
+        _logger.LogDebug("config.EnableProfileImageSync: ${EnableProfileImageSync}", config.EnableProfileImageSync);
+        _logger.LogDebug("userInfo.Picture: ${Picture}", userInfo.Picture);
         if (config.EnableProfileImageSync && !string.IsNullOrEmpty(userInfo.Picture))
         {
             await SyncProfileImageAsync(user, userInfo.Picture).ConfigureAwait(false);
