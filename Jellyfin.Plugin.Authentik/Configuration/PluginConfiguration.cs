@@ -20,6 +20,7 @@ public class PluginConfiguration : BasePluginConfiguration
         AutoCreateUsers = true;
         EnableGroupSync = true;
         EnableProfileImageSync = true;
+        ProfileImageClaim = "attributes.avatar";
         ForceHttpsRedirect = false;
     }
 
@@ -70,4 +71,10 @@ public class PluginConfiguration : BasePluginConfiguration
     /// Gets or sets a value indicating whether to sync the user's profile image from Authentik.
     /// </summary>
     public bool EnableProfileImageSync { get; set; }
+
+    /// <summary>
+    /// Gets or sets the claim path used to extract the profile image URL from the userinfo response.
+    /// Supports dot-notation for nested fields (e.g. "attributes.avatar"). Default: "attributes.avatar".
+    /// </summary>
+    public string ProfileImageClaim { get; set; }
 }

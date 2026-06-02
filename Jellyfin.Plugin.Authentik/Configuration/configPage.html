@@ -77,6 +77,12 @@
                         </label>
                     </div>
 
+                    <div class="inputContainer">
+                        <label class="inputLabel" for="txtProfileImageClaim">Profile Image Claim Path</label>
+                        <input id="txtProfileImageClaim" type="text" is="emby-input" value="attributes.avatar" />
+                        <div class="fieldDescription">Dot-notation path to the profile image URL in the userinfo response (e.g. <code>attributes.avatar</code>, <code>picture</code>).</div>
+                    </div>
+
                     <div>
                         <button is="emby-button" type="submit" class="raised button-submit block">
                             <span>Save</span>
@@ -101,6 +107,7 @@
                         document.querySelector('#chkAutoCreate').checked = config.AutoCreateUsers;
                         document.querySelector('#chkGroupSync').checked = config.EnableGroupSync;
                         document.querySelector('#chkProfileImageSync').checked = config.EnableProfileImageSync;
+                        document.querySelector('#txtProfileImageClaim').value = config.ProfileImageClaim || 'attributes.avatar';
                     });
                 });
 
@@ -117,6 +124,7 @@
                         config.AutoCreateUsers = document.querySelector('#chkAutoCreate').checked;
                         config.EnableGroupSync = document.querySelector('#chkGroupSync').checked;
                         config.EnableProfileImageSync = document.querySelector('#chkProfileImageSync').checked;
+                        config.ProfileImageClaim = document.querySelector('#txtProfileImageClaim').value;
                         ApiClient.updatePluginConfiguration(pluginId, config).then(function () {
                             Dashboard.processPluginConfigurationUpdateResult();
                         });

@@ -119,7 +119,44 @@ public class OidcService
             return null;
         }
 
-        return await response.Content.ReadFromJsonAsync<OidcUserInfo>().ConfigureAwait(false);
+        var json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+        var userInfo = System.Text.Json.JsonSerializer.Deserialize<OidcUserInfo>(json);
+
+        if (userInfo is not null && !string.IsNullOrWhiteSpace(config.ProfileImageClaim))
+        {
+            userInfo.Picture = ExtractClaimValue(json, config.ProfileImageClaim);
+        }
+
+        return userInfo;
+    }
+
+    /// <summary>
+    /// Extracts a value from a JSON string using a dot-notation path (e.g. "attributes.avatar").
+    /// </summary>
+    private static string? ExtractClaimValue(string json, string claimPath)
+    {
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(json);
+            var element = doc.RootElement;
+
+            foreach (var segment in claimPath.Split('.'))
+            {
+                if (element.ValueKind != System.Text.Json.JsonValueKind.Object ||
+                    !element.TryGetProperty(segment, out element))
+                {
+                    return null;
+                }
+            }
+
+            return element.ValueKind == System.Text.Json.JsonValueKind.String
+                ? element.GetString()
+                : null;
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private static string GenerateCodeVerifier()

@@ -34,8 +34,9 @@ public class OidcUserInfo
 
     /// <summary>
     /// Gets or sets the user's profile picture URL or base64 data URI.
+    /// This is populated dynamically from the configured claim path, not from a fixed JSON field.
     /// </summary>
-    [JsonPropertyName("picture")]
+    [JsonIgnore]
     public string? Picture { get; set; }
 
     /// <summary>
