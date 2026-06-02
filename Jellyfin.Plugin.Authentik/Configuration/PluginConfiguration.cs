@@ -19,6 +19,7 @@ public class PluginConfiguration : BasePluginConfiguration
         AllowedGroup = "jellyfin-users";
         AutoCreateUsers = true;
         EnableGroupSync = true;
+        EnableProfileImageSync = true;
         ForceHttpsRedirect = false;
     }
 
@@ -64,4 +65,9 @@ public class PluginConfiguration : BasePluginConfiguration
     /// Gets or sets a value indicating whether Authentik groups should sync to Jellyfin permissions.
     /// </summary>
     public bool EnableGroupSync { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether to sync the user's profile image from Authentik.
+    /// </summary>
+    public bool EnableProfileImageSync { get; set; }
 }

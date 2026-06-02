@@ -1,11 +1,13 @@
 using System;
 using System.Collections.Generic;
+using System.Net.Http;
 using System.Reflection;
 using System.Runtime.Serialization;
 using System.Threading.Tasks;
 using Jellyfin.Database.Implementations.Entities;
 using Jellyfin.Plugin.Authentik.Configuration;
 using Jellyfin.Plugin.Authentik.Services;
+using MediaBrowser.Controller.Configuration;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Model.Cryptography;
 using MediaBrowser.Model.Users;
@@ -32,7 +34,10 @@ public class UserSyncServiceTests : IDisposable
         _mockUserManager = new Mock<IUserManager>();
         _cryptoProvider = new FakeCryptoProvider();
         _logger = NullLogger<UserSyncService>.Instance;
-        _service = new UserSyncService(_mockUserManager.Object, _cryptoProvider, _logger);
+        var mockHttpClientFactory = new Mock<IHttpClientFactory>();
+        mockHttpClientFactory.Setup(f => f.CreateClient(It.IsAny<string>())).Returns(new HttpClient());
+        var mockConfigManager = new Mock<IServerConfigurationManager>();
+        _service = new UserSyncService(_mockUserManager.Object, _cryptoProvider, mockHttpClientFactory.Object, mockConfigManager.Object, _logger);
 
         _config = new PluginConfiguration
         {

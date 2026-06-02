@@ -1,8 +1,12 @@
 using System;
+using System.IO;
 using System.Linq;
+using System.Net.Http;
 using System.Security.Cryptography;
 using System.Threading.Tasks;
+using Jellyfin.Database.Implementations.Entities;
 using Jellyfin.Plugin.Authentik.Configuration;
+using MediaBrowser.Controller.Configuration;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Model.Cryptography;
 using MediaBrowser.Model.Users;
@@ -17,6 +21,8 @@ public class UserSyncService
 {
     private readonly IUserManager _userManager;
     private readonly ICryptoProvider _cryptoProvider;
+    private readonly IHttpClientFactory _httpClientFactory;
+    private readonly IServerConfigurationManager _configManager;
     private readonly ILogger<UserSyncService> _logger;
 
     /// <summary>
@@ -24,11 +30,15 @@ public class UserSyncService
     /// </summary>
     /// <param name="userManager">The Jellyfin user manager.</param>
     /// <param name="cryptoProvider">The crypto provider for password generation.</param>
+    /// <param name="httpClientFactory">The HTTP client factory for downloading images.</param>
+    /// <param name="configManager">The server configuration manager.</param>
     /// <param name="logger">The logger.</param>
-    public UserSyncService(IUserManager userManager, ICryptoProvider cryptoProvider, ILogger<UserSyncService> logger)
+    public UserSyncService(IUserManager userManager, ICryptoProvider cryptoProvider, IHttpClientFactory httpClientFactory, IServerConfigurationManager configManager, ILogger<UserSyncService> logger)
     {
         _userManager = userManager;
         _cryptoProvider = cryptoProvider;
+        _httpClientFactory = httpClientFactory;
+        _configManager = configManager;
         _logger = logger;
     }
 
@@ -93,6 +103,11 @@ public class UserSyncService
                 isAdmin);
         }
 
+        if (config.EnableProfileImageSync && !string.IsNullOrEmpty(userInfo.Picture))
+        {
+            await SyncProfileImageAsync(user, userInfo.Picture).ConfigureAwait(false);
+        }
+
         return user.Id;
     }
 
@@ -131,5 +146,89 @@ public class UserSyncService
         }
 
         return isAllowed;
+    }
+
+    /// <summary>
+    /// Downloads or decodes the user's profile image and saves it to Jellyfin.
+    /// Supports both URLs and base64 data URIs (e.g. data:image/png;base64,...).
+    /// </summary>
+    private async Task SyncProfileImageAsync(Jellyfin.Database.Implementations.Entities.User user, string picture)
+    {
+        try
+        {
+            byte[] imageBytes;
+            string extension;
+
+            if (picture.StartsWith("data:", StringComparison.OrdinalIgnoreCase))
+            {
+                // Parse data URI: data:[<mediatype>][;base64],<data>
+                var commaIndex = picture.IndexOf(',', StringComparison.Ordinal);
+                if (commaIndex < 0)
+                {
+                    _logger.LogWarning("Invalid data URI for profile image of {Username}", user.Username);
+                    return;
+                }
+
+                var header = picture[..commaIndex]; // e.g. "data:image/png;base64"
+                var base64Data = picture[(commaIndex + 1)..];
+                imageBytes = Convert.FromBase64String(base64Data);
+
+                // Extract extension from media type
+                extension = ".jpg";
+                var mimeStart = header.IndexOf(':', StringComparison.Ordinal) + 1;
+                var mimeEnd = header.IndexOf(';', StringComparison.Ordinal);
+                if (mimeEnd > mimeStart)
+                {
+                    var mime = header[mimeStart..mimeEnd];
+                    extension = mime switch
+                    {
+                        "image/png" => ".png",
+                        "image/gif" => ".gif",
+                        "image/webp" => ".webp",
+                        _ => ".jpg",
+                    };
+                }
+            }
+            else
+            {
+                // Treat as URL
+                var httpClient = _httpClientFactory.CreateClient("AuthentikPlugin");
+                using var response = await httpClient.GetAsync(new Uri(picture)).ConfigureAwait(false);
+                response.EnsureSuccessStatusCode();
+                imageBytes = await response.Content.ReadAsByteArrayAsync().ConfigureAwait(false);
+
+                // Determine extension from content type or URL
+                var contentType = response.Content.Headers.ContentType?.MediaType ?? string.Empty;
+                extension = contentType switch
+                {
+                    "image/png" => ".png",
+                    "image/gif" => ".gif",
+                    "image/webp" => ".webp",
+                    _ => ".jpg",
+                };
+            }
+
+            var userDataPath = Path.Combine(
+                _configManager.ApplicationPaths.UserConfigurationDirectoryPath,
+                user.Username);
+            Directory.CreateDirectory(userDataPath);
+
+            var imagePath = Path.Combine(userDataPath, "profile" + extension);
+            await File.WriteAllBytesAsync(imagePath, imageBytes).ConfigureAwait(false);
+
+            if (user.ProfileImage is not null)
+            {
+                await _userManager.ClearProfileImageAsync(user).ConfigureAwait(false);
+            }
+
+            user.ProfileImage = new ImageInfo(imagePath);
+            await _userManager.UpdateUserAsync(user).ConfigureAwait(false);
+
+            _logger.LogInformation("Synced profile image for {Username}", user.Username);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to sync profile image for {Username}", user.Username);
+        }
     }
 }
