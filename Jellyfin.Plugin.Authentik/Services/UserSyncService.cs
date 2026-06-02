@@ -163,6 +163,7 @@ public class UserSyncService
 
             if (picture.StartsWith("data:", StringComparison.OrdinalIgnoreCase))
             {
+                _logger.LogDebug("picture is a data URI, parsing for {Username}", user.Username);
                 // Parse data URI: data:[<mediatype>][;base64],<data>
                 var commaIndex = picture.IndexOf(',', StringComparison.Ordinal);
                 if (commaIndex < 0)
@@ -193,6 +194,7 @@ public class UserSyncService
             }
             else
             {
+                _logger.LogDebug("picture is not a data URI, treating as URL for {Username}", user.Username);
                 // Treat as URL
                 var httpClient = _httpClientFactory.CreateClient("AuthentikPlugin");
                 using var response = await httpClient.GetAsync(new Uri(picture)).ConfigureAwait(false);
@@ -218,10 +220,13 @@ public class UserSyncService
             var imagePath = Path.Combine(userDataPath, "profile" + extension);
 
             // Skip if the image hasn't changed (compare SHA256 hash)
+            _logger.LogDebug("imagePath: ${ImagePath}", imagePath);
             if (File.Exists(imagePath))
             {
                 var existingHash = Convert.ToHexString(SHA256.HashData(await File.ReadAllBytesAsync(imagePath).ConfigureAwait(false)));
                 var newHash = Convert.ToHexString(SHA256.HashData(imageBytes));
+                _logger.LogDebug("existingHash: ${ExistingHash}", existingHash);
+                _logger.LogDebug("newHash: ${NewHash}", newHash);
                 if (string.Equals(existingHash, newHash, StringComparison.OrdinalIgnoreCase))
                 {
                     _logger.LogDebug("Profile image unchanged for {Username}, skipping sync", user.Username);
