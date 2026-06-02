@@ -231,13 +231,21 @@ public class UserSyncService
 
             await File.WriteAllBytesAsync(imagePath, imageBytes).ConfigureAwait(false);
 
-            if (user.ProfileImage is not null)
+            // Reload the user to avoid concurrency issues - the user object may have been modified since it was loaded
+            var freshUser = _userManager.GetUserByName(user.Username);
+            if (freshUser == null)
             {
-                await _userManager.ClearProfileImageAsync(user).ConfigureAwait(false);
+                _logger.LogWarning("User {Username} no longer exists, skipping profile image sync", user.Username);
+                return;
             }
 
-            user.ProfileImage = new ImageInfo(imagePath);
-            await _userManager.UpdateUserAsync(user).ConfigureAwait(false);
+            if (freshUser.ProfileImage is not null)
+            {
+                await _userManager.ClearProfileImageAsync(freshUser).ConfigureAwait(false);
+            }
+
+            freshUser.ProfileImage = new ImageInfo(imagePath);
+            await _userManager.UpdateUserAsync(freshUser).ConfigureAwait(false);
 
             _logger.LogInformation("Synced profile image for {Username}", user.Username);
         }
