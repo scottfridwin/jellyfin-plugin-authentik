@@ -103,8 +103,6 @@ public class UserSyncService
                 isAdmin);
         }
 
-        _logger.LogDebug("config.EnableProfileImageSync: ${EnableProfileImageSync}", config.EnableProfileImageSync);
-        _logger.LogDebug("userInfo.Picture: ${Picture}", userInfo.Picture);
         if (config.EnableProfileImageSync && !string.IsNullOrEmpty(userInfo.Picture))
         {
             await SyncProfileImageAsync(user, userInfo.Picture).ConfigureAwait(false);
@@ -220,13 +218,10 @@ public class UserSyncService
             var imagePath = Path.Combine(userDataPath, "profile" + extension);
 
             // Skip if the image hasn't changed (compare SHA256 hash)
-            _logger.LogDebug("imagePath: ${ImagePath}", imagePath);
             if (File.Exists(imagePath))
             {
                 var existingHash = Convert.ToHexString(SHA256.HashData(await File.ReadAllBytesAsync(imagePath).ConfigureAwait(false)));
                 var newHash = Convert.ToHexString(SHA256.HashData(imageBytes));
-                _logger.LogDebug("existingHash: ${ExistingHash}", existingHash);
-                _logger.LogDebug("newHash: ${NewHash}", newHash);
                 if (string.Equals(existingHash, newHash, StringComparison.OrdinalIgnoreCase))
                 {
                     _logger.LogDebug("Profile image unchanged for {Username}, skipping sync", user.Username);
