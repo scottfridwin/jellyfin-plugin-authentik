@@ -8,6 +8,7 @@ Single sign-on authentication for [Jellyfin](https://jellyfin.org/) using [Authe
 - **Automatic user provisioning** — creates Jellyfin users on first SSO login
 - **Group-based permissions** — map Authentik groups to Jellyfin admin/user roles
 - **Admin permission sync** — admin group members get full server management rights
+- **Profile image sync** — automatically sync user avatars from Authentik to Jellyfin
 - **Access control** — restrict Jellyfin access to specific Authentik groups
 - **Reverse proxy support** — force HTTPS redirect URIs for TLS-terminating proxies
 - **Themed callback page** — dark-by-default login interstitial that respects `prefers-color-scheme` and Jellyfin's Custom CSS
@@ -24,6 +25,25 @@ Single sign-on authentication for [Jellyfin](https://jellyfin.org/) using [Authe
    - **Scopes**: `openid`, `profile`, `email` (ensure `groups` scope is included — it is by default)
 2. Create an **Application** linked to the provider
 3. Assign users/groups to the application
+
+#### Profile Image Sync (Optional)
+
+To sync user avatars from Authentik to Jellyfin, you need to expose the avatar URL in the userinfo response:
+
+1. Go to **Customization → Property Mappings → Create → Scope Mapping**
+2. Configure the mapping:
+   - **Name**: `Jellyfin Avatar`
+   - **Scope name**: `profile`
+   - **Expression**:
+     ```python
+     return {
+         "picture": request.user.avatar
+     }
+     ```
+3. Go to **Applications → Providers → Your Jellyfin Provider → Advanced protocol settings**
+4. Under **Scopes**, ensure the `profile` scope is selected (it should include your new mapping)
+
+> **Note:** If you store the avatar in a custom user attribute instead (e.g., `attributes.photo`), adjust the expression to `request.user.attributes.get("photo", "")` and update the **Profile Image Claim Path** in the Jellyfin plugin config to match (e.g., `photo`).
 
 ### Jellyfin Side
 
@@ -67,6 +87,8 @@ After installation, go to **Dashboard → Plugins → Authentik SSO** and config
 | **Required Group** | Authentik group required to log in (leave blank to allow all Authentik users) | `jellyfin-users` |
 | **Auto-Create Users** | Create Jellyfin accounts on first SSO login | `true` |
 | **Enable Group Sync** | Sync Authentik groups → Jellyfin permissions on each login | `true` |
+| **Sync Profile Image** | Sync the user's profile image from Authentik on each login | `true` |
+| **Profile Image Claim Path** | Dot-notation path to the image URL in the userinfo response | `picture` |
 | **Force HTTPS Redirect** | Force `https://` in the OAuth callback URI (enable if behind a TLS-terminating reverse proxy) | `false` |
 
 ## Usage

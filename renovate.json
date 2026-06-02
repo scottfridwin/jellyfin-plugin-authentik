@@ -1,0 +1,12 @@
+{
+  "extends": [
+    "config:recommended"
+  ],
+  "prCreation": "immediate",
+  "nuget": {
+    "enabled": true
+  },
+  "assignees": [
+    "scottfridwin"
+  ]
+}

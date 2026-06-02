@@ -33,6 +33,13 @@ public class OidcUserInfo
     public string? Name { get; set; }
 
     /// <summary>
+    /// Gets or sets the user's profile picture URL or base64 data URI.
+    /// This is populated dynamically from the configured claim path, not from a fixed JSON field.
+    /// </summary>
+    [JsonIgnore]
+    public string? Picture { get; set; }
+
+    /// <summary>
     /// Gets or sets the groups the user belongs to.
     /// </summary>
     [JsonPropertyName("groups")]

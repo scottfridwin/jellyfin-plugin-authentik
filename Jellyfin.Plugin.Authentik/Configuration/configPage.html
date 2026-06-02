@@ -70,6 +70,19 @@
                         </label>
                     </div>
 
+                    <div class="checkboxContainer">
+                        <label>
+                            <input id="chkProfileImageSync" type="checkbox" is="emby-checkbox" checked />
+                            <span>Sync profile image from Authentik on each login</span>
+                        </label>
+                    </div>
+
+                    <div class="inputContainer">
+                        <label class="inputLabel" for="txtProfileImageClaim">Profile Image Claim Path</label>
+                        <input id="txtProfileImageClaim" type="text" is="emby-input" value="picture" />
+                        <div class="fieldDescription">Dot-notation path to the profile image URL in the userinfo response (e.g. <code>picture</code>, <code>attributes.avatar</code>). Requires a scope mapping in Authentik.</div>
+                    </div>
+
                     <div>
                         <button is="emby-button" type="submit" class="raised button-submit block">
                             <span>Save</span>
@@ -93,6 +106,8 @@
                         document.querySelector('#chkForceHttps').checked = config.ForceHttpsRedirect;
                         document.querySelector('#chkAutoCreate').checked = config.AutoCreateUsers;
                         document.querySelector('#chkGroupSync').checked = config.EnableGroupSync;
+                        document.querySelector('#chkProfileImageSync').checked = config.EnableProfileImageSync;
+                        document.querySelector('#txtProfileImageClaim').value = config.ProfileImageClaim || 'attributes.avatar';
                     });
                 });
 
@@ -108,6 +123,8 @@
                         config.ForceHttpsRedirect = document.querySelector('#chkForceHttps').checked;
                         config.AutoCreateUsers = document.querySelector('#chkAutoCreate').checked;
                         config.EnableGroupSync = document.querySelector('#chkGroupSync').checked;
+                        config.EnableProfileImageSync = document.querySelector('#chkProfileImageSync').checked;
+                        config.ProfileImageClaim = document.querySelector('#txtProfileImageClaim').value;
                         ApiClient.updatePluginConfiguration(pluginId, config).then(function () {
                             Dashboard.processPluginConfigurationUpdateResult();
                         });
