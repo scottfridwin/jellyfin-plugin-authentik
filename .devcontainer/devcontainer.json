@@ -1,6 +1,6 @@
 {
   "name": "Jellyfin Plugin - Authentik SSO",
-  "image": "mcr.microsoft.com/dotnet/sdk:9.0",
+  "image": "mcr.microsoft.com/dotnet/sdk:10.0",
   "features": {
     "ghcr.io/devcontainers/features/github-cli:1": {}
   },
