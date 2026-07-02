@@ -107,7 +107,20 @@ public class UserSyncService
         {
             await SyncProfileImageAsync(user, userInfo.Picture).ConfigureAwait(false);
         }
-
+        else if (config.EnableProfileImageSync)
+        {
+            // No picture set at Authentik — clear any existing profile image
+            // so Jellyfin renders its default avatar instead of a blank space
+            var freshUser = _userManager.GetUserByName(user.Username);
+            if (freshUser is not null && freshUser.ProfileImage is not null)
+            {
+                await _userManager.ClearProfileImageAsync(freshUser).ConfigureAwait(false);
+                await _userManager.UpdateUserAsync(freshUser).ConfigureAwait(false);
+                _logger.LogInformation(
+                    "No profile image claim for {Username}, cleared to use Jellyfin default",
+                    user.Username);
+            }
+        }
         return user.Id;
     }
 
