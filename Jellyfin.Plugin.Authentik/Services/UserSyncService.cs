@@ -1,9 +1,11 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Security.Cryptography;
 using System.Threading.Tasks;
+using Jellyfin.Data.Enums;
 using Jellyfin.Database.Implementations.Entities;
 using Jellyfin.Plugin.Authentik.Configuration;
 using MediaBrowser.Controller.Configuration;
@@ -19,6 +21,17 @@ namespace Jellyfin.Plugin.Authentik.Services;
 /// </summary>
 public class UserSyncService
 {
+    private static readonly UnratedItem[] _allUnratedItems = Enum.GetValues<UnratedItem>();
+
+    private static readonly IReadOnlyList<ContentRestrictionGroup> _contentRestrictionGroups =
+    [
+        new("G/TV-G/TV-Y", 0, static config => config.GGroup),
+        new("TV-Y7", 7, static config => config.TvY7Group),
+        new("PG/TV-PG", 10, static config => config.PgGroup),
+        new("PG-13", 13, static config => config.Pg13Group),
+        new("TV-14", 14, static config => config.Tv14Group),
+    ];
+
     private readonly IUserManager _userManager;
     private readonly ICryptoProvider _cryptoProvider;
     private readonly IHttpClientFactory _httpClientFactory;
@@ -71,36 +84,45 @@ public class UserSyncService
 
         await _userManager.UpdateUserAsync(user).ConfigureAwait(false);
 
-        if (config.EnableGroupSync)
+        if (config.EnableGroupSync || config.EnableContentPolicySync)
         {
             var isAdmin = userInfo.Groups.Contains(config.AdminGroup, StringComparer.OrdinalIgnoreCase);
+            var matchedRestrictions = config.EnableContentPolicySync
+                ? GetMatchedRestrictions(config, userInfo)
+                : [];
 
-            var policy = new UserPolicy
+            var userDto = _userManager.GetUserDto(user);
+            if (userDto?.Policy is null &&
+                config.EnableContentPolicySync &&
+                !config.EnableGroupSync &&
+                !isAdmin &&
+                matchedRestrictions.Count > 0)
             {
-                IsAdministrator = isAdmin,
-                EnableAllFolders = true,
-                EnableRemoteControlOfOtherUsers = isAdmin,
-                EnableLiveTvManagement = isAdmin,
-                EnableLiveTvAccess = true,
-                EnableMediaPlayback = true,
-                EnableAudioPlaybackTranscoding = true,
-                EnableVideoPlaybackTranscoding = true,
-                EnablePlaybackRemuxing = true,
-                EnableContentDeletion = isAdmin,
-                EnableRemoteAccess = true,
-                EnableAllChannels = true,
-                EnableAllDevices = true,
-                EnableSharedDeviceControl = true,
-                AuthenticationProviderId = user.AuthenticationProviderId,
-                PasswordResetProviderId = user.PasswordResetProviderId,
-            };
+                _logger.LogError(
+                    "Cannot safely apply content restrictions for {Username}: existing Jellyfin user policy is unavailable while permission sync is disabled.",
+                    username);
+                throw new UnauthorizedAccessException("Unable to apply required content restrictions. Access denied for safety.");
+            }
+
+            var policy = userDto?.Policy ?? new UserPolicy();
+
+            if (config.EnableGroupSync)
+            {
+                ApplyPermissionSync(policy, user, isAdmin);
+            }
+
+            if (config.EnableContentPolicySync)
+            {
+                ApplyContentPolicySync(policy, matchedRestrictions, userInfo, isAdmin);
+            }
 
             await _userManager.UpdatePolicyAsync(user.Id, policy).ConfigureAwait(false);
 
             _logger.LogInformation(
-                "Synced permissions for {Username}: Admin={IsAdmin}",
+                "Synced Jellyfin policy for {Username}: Admin={IsAdmin}, MaxParentalRating={MaxParentalRating}",
                 username,
-                isAdmin);
+                isAdmin,
+                policy.MaxParentalRating);
         }
 
         if (config.EnableProfileImageSync && !string.IsNullOrEmpty(userInfo.Picture))
@@ -121,7 +143,76 @@ public class UserSyncService
                     user.Username);
             }
         }
+
         return user.Id;
+    }
+
+    private static void ApplyPermissionSync(UserPolicy policy, User user, bool isAdmin)
+    {
+        policy.IsAdministrator = isAdmin;
+        policy.EnableAllFolders = true;
+        policy.EnableRemoteControlOfOtherUsers = isAdmin;
+        policy.EnableLiveTvManagement = isAdmin;
+        policy.EnableLiveTvAccess = true;
+        policy.EnableMediaPlayback = true;
+        policy.EnableAudioPlaybackTranscoding = true;
+        policy.EnableVideoPlaybackTranscoding = true;
+        policy.EnablePlaybackRemuxing = true;
+        policy.EnableContentDeletion = isAdmin;
+        policy.EnableRemoteAccess = true;
+        policy.EnableAllChannels = true;
+        policy.EnableAllDevices = true;
+        policy.EnableSharedDeviceControl = true;
+        policy.AuthenticationProviderId = user.AuthenticationProviderId;
+        policy.PasswordResetProviderId = user.PasswordResetProviderId;
+    }
+
+    private void ApplyContentPolicySync(UserPolicy policy, List<ContentRestrictionGroup> matchedRestrictions, OidcUserInfo userInfo, bool isAdmin)
+    {
+        if (isAdmin)
+        {
+            policy.MaxParentalRating = null;
+            policy.MaxParentalSubRating = null;
+            policy.BlockUnratedItems = [];
+            return;
+        }
+
+        if (matchedRestrictions.Count == 0)
+        {
+            policy.MaxParentalRating = null;
+            policy.MaxParentalSubRating = null;
+            policy.BlockUnratedItems = [];
+            return;
+        }
+
+        var selectedRestriction = matchedRestrictions
+            .OrderByDescending(restriction => restriction.MaxParentalRating)
+            .First();
+
+        policy.MaxParentalRating = selectedRestriction.MaxParentalRating;
+        policy.MaxParentalSubRating = null;
+        policy.BlockUnratedItems = _allUnratedItems;
+
+        if (matchedRestrictions.Count > 1)
+        {
+            _logger.LogWarning(
+                "User {Username} matched multiple content restriction groups [{Groups}]. Applying least restrictive rating {RatingLabel}.",
+                userInfo.PreferredUsername,
+                string.Join(", ", matchedRestrictions.Select(static restriction => restriction.Name)),
+                selectedRestriction.Name);
+        }
+    }
+
+    private static List<ContentRestrictionGroup> GetMatchedRestrictions(PluginConfiguration config, OidcUserInfo userInfo)
+    {
+        return _contentRestrictionGroups
+            .Where(restriction =>
+            {
+                var groupName = restriction.GroupSelector(config);
+                return !string.IsNullOrWhiteSpace(groupName)
+                    && userInfo.Groups.Contains(groupName, StringComparer.OrdinalIgnoreCase);
+            })
+            .ToList();
     }
 
     /// <summary>
@@ -267,4 +358,6 @@ public class UserSyncService
             _logger.LogWarning(ex, "Failed to sync profile image for {Username}", user.Username);
         }
     }
+
+    private sealed record ContentRestrictionGroup(string Name, int MaxParentalRating, Func<PluginConfiguration, string> GroupSelector);
 }

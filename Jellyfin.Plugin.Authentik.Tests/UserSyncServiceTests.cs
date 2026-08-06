@@ -1,15 +1,18 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net.Http;
 using System.Reflection;
 using System.Runtime.Serialization;
 using System.Threading.Tasks;
+using Jellyfin.Data.Enums;
 using Jellyfin.Database.Implementations.Entities;
 using Jellyfin.Plugin.Authentik.Configuration;
 using Jellyfin.Plugin.Authentik.Services;
 using MediaBrowser.Controller.Configuration;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Model.Cryptography;
+using MediaBrowser.Model.Dto;
 using MediaBrowser.Model.Users;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -45,6 +48,7 @@ public class UserSyncServiceTests : IDisposable
             AllowedGroup = "jellyfin-users",
             AutoCreateUsers = true,
             EnableGroupSync = true,
+            EnableContentPolicySync = false,
         };
 
         SetPluginConfiguration(_config);
@@ -228,6 +232,45 @@ public class UserSyncServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task SyncUserAsync_ContentPolicySyncEnabledWithoutPermissionSync_UpdatesParentalRating()
+    {
+        _config.EnableGroupSync = false;
+        _config.EnableContentPolicySync = true;
+        _config.PgGroup = "jellyfin-rating-pg";
+
+        var user = CreateMockUser("pguser");
+        _mockUserManager.Setup(m => m.GetUserByName("pguser")).Returns(user);
+        SetupExistingPolicy(user, new UserPolicy());
+
+        var userInfo = CreateUserInfo("pguser", "jellyfin-users", "jellyfin-rating-pg");
+        await _service.SyncUserAsync(userInfo);
+
+        _mockUserManager.Verify(m => m.UpdatePolicyAsync(
+            user.Id,
+            It.Is<UserPolicy>(p =>
+                p.MaxParentalRating == 10 &&
+                p.MaxParentalSubRating == null &&
+                p.BlockUnratedItems.Length == Enum.GetValues<UnratedItem>().Length)),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task SyncUserAsync_ContentPolicySyncOnly_RestrictedUserWithoutExistingPolicy_Throws()
+    {
+        _config.EnableGroupSync = false;
+        _config.EnableContentPolicySync = true;
+        _config.PgGroup = "jellyfin-rating-pg";
+
+        var user = CreateMockUser("child");
+        _mockUserManager.Setup(m => m.GetUserByName("child")).Returns(user);
+
+        var userInfo = CreateUserInfo("child", "jellyfin-users", "jellyfin-rating-pg");
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => _service.SyncUserAsync(userInfo));
+
+        _mockUserManager.Verify(m => m.UpdatePolicyAsync(It.IsAny<Guid>(), It.IsAny<UserPolicy>()), Times.Never);
+    }
+
+    [Fact]
     public async Task SyncUserAsync_PreservesAuthenticationProviderId()
     {
         var user = CreateMockUser("testuser");
@@ -273,6 +316,92 @@ public class UserSyncServiceTests : IDisposable
         _mockUserManager.Verify(m => m.UpdatePolicyAsync(
             user.Id,
             It.Is<UserPolicy>(p => p.IsAdministrator == true)),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task SyncUserAsync_NoRestrictionGroupsMatched_ClearsParentalRestriction()
+    {
+        _config.EnableContentPolicySync = true;
+        _config.PgGroup = "jellyfin-rating-pg";
+
+        var user = CreateMockUser("openuser");
+        _mockUserManager.Setup(m => m.GetUserByName("openuser")).Returns(user);
+        SetupExistingPolicy(user, new UserPolicy { MaxParentalRating = 10, MaxParentalSubRating = 1 });
+
+        var userInfo = CreateUserInfo("openuser", "jellyfin-users");
+        await _service.SyncUserAsync(userInfo);
+
+        _mockUserManager.Verify(m => m.UpdatePolicyAsync(
+            user.Id,
+            It.Is<UserPolicy>(p =>
+                p.MaxParentalRating == null &&
+                p.MaxParentalSubRating == null &&
+                p.BlockUnratedItems.Length == 0)),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task SyncUserAsync_MultipleRestrictionGroups_UsesLeastRestrictiveRating()
+    {
+        _config.EnableContentPolicySync = true;
+        _config.GGroup = "jellyfin-rating-g";
+        _config.Tv14Group = "jellyfin-rating-tv14";
+
+        var user = CreateMockUser("multi");
+        _mockUserManager.Setup(m => m.GetUserByName("multi")).Returns(user);
+
+        var userInfo = CreateUserInfo("multi", "jellyfin-users", "jellyfin-rating-g", "jellyfin-rating-tv14");
+        await _service.SyncUserAsync(userInfo);
+
+        _mockUserManager.Verify(m => m.UpdatePolicyAsync(
+            user.Id,
+            It.Is<UserPolicy>(p =>
+                p.MaxParentalRating == 14 &&
+                p.BlockUnratedItems.Contains(UnratedItem.Movie))),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task SyncUserAsync_AdminUser_IgnoresRestrictionGroups()
+    {
+        _config.EnableContentPolicySync = true;
+        _config.PgGroup = "jellyfin-rating-pg";
+
+        var user = CreateMockUser("admin");
+        _mockUserManager.Setup(m => m.GetUserByName("admin")).Returns(user);
+        SetupExistingPolicy(user, new UserPolicy { MaxParentalRating = 10 });
+
+        var userInfo = CreateUserInfo("admin", "jellyfin-admins", "jellyfin-rating-pg");
+        await _service.SyncUserAsync(userInfo);
+
+        _mockUserManager.Verify(m => m.UpdatePolicyAsync(
+            user.Id,
+            It.Is<UserPolicy>(p =>
+                p.IsAdministrator == true &&
+                p.MaxParentalRating == null &&
+                p.MaxParentalSubRating == null &&
+                p.BlockUnratedItems.Length == 0)),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task SyncUserAsync_ContentPolicySyncDisabled_PreservesExistingParentalRestriction()
+    {
+        _config.EnableContentPolicySync = false;
+
+        var user = CreateMockUser("existing");
+        _mockUserManager.Setup(m => m.GetUserByName("existing")).Returns(user);
+        SetupExistingPolicy(user, new UserPolicy { MaxParentalRating = 10, MaxParentalSubRating = 1 });
+
+        var userInfo = CreateUserInfo("existing", "jellyfin-users");
+        await _service.SyncUserAsync(userInfo);
+
+        _mockUserManager.Verify(m => m.UpdatePolicyAsync(
+            user.Id,
+            It.Is<UserPolicy>(p =>
+                p.MaxParentalRating == 10 &&
+                p.MaxParentalSubRating == 1)),
             Times.Once);
     }
 
@@ -339,6 +468,17 @@ public class UserSyncServiceTests : IDisposable
             username,
             "Jellyfin.Server.Implementations.Users.DefaultAuthenticationProvider",
             "Jellyfin.Server.Implementations.Users.DefaultPasswordResetProvider");
+    }
+
+    private void SetupExistingPolicy(User user, UserPolicy? policy = null)
+    {
+        _mockUserManager.Setup(m => m.GetUserDto(user, It.IsAny<string?>()))
+            .Returns(new UserDto
+            {
+                Id = user.Id,
+                Name = user.Username,
+                Policy = policy ?? new UserPolicy(),
+            });
     }
 
     /// <summary>
