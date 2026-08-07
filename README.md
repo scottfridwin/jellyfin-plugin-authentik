@@ -4,7 +4,7 @@ Single sign-on authentication for [Jellyfin](https://jellyfin.org/) using [Authe
 
 ## Features
 
-- **OIDC authentication** via Authentik with PKCE (Proof Key for Code Exchange) 
+- **OIDC authentication** via Authentik with PKCE (Proof Key for Code Exchange)
 - **Automatic user provisioning** — creates Jellyfin users on first SSO login
 - **Group-based permissions** — map Authentik groups to Jellyfin admin/user roles
 - **Admin permission sync** — admin group members get full server management rights
@@ -64,7 +64,7 @@ To sync user avatars from Authentik to Jellyfin, you need to expose the avatar U
 > ```
 > https://scottfridwin.github.io/jellyfin-plugin-authentik/dev/manifest.json
 > ```
-> Dev builds are updated on every push to the `dev` branch and may be unstable.
+> Dev builds are updated on every push to the `dev` branch and may be unstable. Use only for testing.
 
 #### Manual Installation
 
