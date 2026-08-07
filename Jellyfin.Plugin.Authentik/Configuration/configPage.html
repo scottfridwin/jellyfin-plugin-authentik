@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html>
+
 <head>
     <title>Authentik SSO</title>
 </head>
+
 <body>
     <div id="AuthentikSSOConfigPage" data-role="page" class="page type-interior pluginConfigurationPage"
-         data-require="emby-input,emby-button,emby-checkbox">
+        data-require="emby-input,emby-button,emby-checkbox">
         <div data-role="content">
             <div class="content-primary">
                 <form id="AuthentikSSOConfigForm">
@@ -15,8 +17,7 @@
 
                     <div class="inputContainer">
                         <label class="inputLabel" for="txtAuthentikUrl">Authentik URL</label>
-                        <input id="txtAuthentikUrl" type="url" is="emby-input"
-                               placeholder="https://auth.example.com" />
+                        <input id="txtAuthentikUrl" type="url" is="emby-input" placeholder="https://auth.example.com" />
                         <div class="fieldDescription">The base URL of your Authentik instance.</div>
                     </div>
 
@@ -29,7 +30,8 @@
                     <div class="inputContainer">
                         <label class="inputLabel" for="txtClientSecret">Client Secret</label>
                         <input id="txtClientSecret" type="password" is="emby-input" />
-                        <div class="fieldDescription">The OAuth2/OIDC Client Secret from your Authentik application.</div>
+                        <div class="fieldDescription">The OAuth2/OIDC Client Secret from your Authentik application.
+                        </div>
                     </div>
 
                     <div class="inputContainer">
@@ -41,7 +43,9 @@
                     <div class="inputContainer">
                         <label class="inputLabel" for="txtAllowedGroup">Required Group</label>
                         <input id="txtAllowedGroup" type="text" is="emby-input" value="jellyfin-users" />
-                        <div class="fieldDescription">Authentik group required to access Jellyfin. Leave blank to allow all authenticated Authentik users. Members of the Admin Group are always allowed regardless of this setting.</div>
+                        <div class="fieldDescription">Authentik group required to access Jellyfin. Leave blank to allow
+                            all authenticated Authentik users. Members of the Admin Group are always allowed regardless
+                            of this setting.</div>
                     </div>
 
                     <div class="checkboxContainer">
@@ -72,6 +76,53 @@
 
                     <div class="checkboxContainer">
                         <label>
+                            <input id="chkContentPolicySync" type="checkbox" is="emby-checkbox" />
+                            <span>Sync Authentik groups to Jellyfin content rating restrictions on each login</span>
+                        </label>
+                        <div class="fieldDescription">
+                            Admin Group members always keep unrestricted access. If enabled, users who match one or more
+                            content restriction groups are limited to the least restrictive matching rating. Users who
+                            do not match any configured restriction groups keep unrestricted access.
+                        </div>
+                    </div>
+
+                    <div class="inputContainer">
+                        <label class="inputLabel" for="txtGGroup">G / TV-G / TV-Y Group</label>
+                        <input id="txtGGroup" type="text" is="emby-input" />
+                        <div class="fieldDescription">Optional Authentik group that restricts users to G, TV-G, and TV-Y
+                            content.</div>
+                    </div>
+
+                    <div class="inputContainer">
+                        <label class="inputLabel" for="txtTvY7Group">TV-Y7 Group</label>
+                        <input id="txtTvY7Group" type="text" is="emby-input" />
+                        <div class="fieldDescription">Optional Authentik group that restricts users to TV-Y7 and below.
+                        </div>
+                    </div>
+
+                    <div class="inputContainer">
+                        <label class="inputLabel" for="txtPgGroup">PG / TV-PG Group</label>
+                        <input id="txtPgGroup" type="text" is="emby-input" />
+                        <div class="fieldDescription">Optional Authentik group that restricts users to PG, TV-PG, and
+                            below.</div>
+                    </div>
+
+                    <div class="inputContainer">
+                        <label class="inputLabel" for="txtPg13Group">PG-13 Group</label>
+                        <input id="txtPg13Group" type="text" is="emby-input" />
+                        <div class="fieldDescription">Optional Authentik group that restricts users to PG-13 and below.
+                        </div>
+                    </div>
+
+                    <div class="inputContainer">
+                        <label class="inputLabel" for="txtTv14Group">TV-14 Group</label>
+                        <input id="txtTv14Group" type="text" is="emby-input" />
+                        <div class="fieldDescription">Optional Authentik group that restricts users to TV-14 and below.
+                        </div>
+                    </div>
+
+                    <div class="checkboxContainer">
+                        <label>
                             <input id="chkProfileImageSync" type="checkbox" is="emby-checkbox" checked />
                             <span>Sync profile image from Authentik on each login</span>
                         </label>
@@ -80,7 +131,9 @@
                     <div class="inputContainer">
                         <label class="inputLabel" for="txtProfileImageClaim">Profile Image Claim Path</label>
                         <input id="txtProfileImageClaim" type="text" is="emby-input" value="picture" />
-                        <div class="fieldDescription">Dot-notation path to the profile image URL in the userinfo response (e.g. <code>picture</code>, <code>attributes.avatar</code>). Requires a scope mapping in Authentik.</div>
+                        <div class="fieldDescription">Dot-notation path to the profile image URL in the userinfo
+                            response (e.g. <code>picture</code>, <code>attributes.avatar</code>). Requires a scope
+                            mapping in Authentik.</div>
                     </div>
 
                     <div>
@@ -106,6 +159,12 @@
                         document.querySelector('#chkForceHttps').checked = config.ForceHttpsRedirect;
                         document.querySelector('#chkAutoCreate').checked = config.AutoCreateUsers;
                         document.querySelector('#chkGroupSync').checked = config.EnableGroupSync;
+                        document.querySelector('#chkContentPolicySync').checked = config.EnableContentPolicySync;
+                        document.querySelector('#txtGGroup').value = config.GGroup || '';
+                        document.querySelector('#txtTvY7Group').value = config.TvY7Group || '';
+                        document.querySelector('#txtPgGroup').value = config.PgGroup || '';
+                        document.querySelector('#txtPg13Group').value = config.Pg13Group || '';
+                        document.querySelector('#txtTv14Group').value = config.Tv14Group || '';
                         document.querySelector('#chkProfileImageSync').checked = config.EnableProfileImageSync;
                         document.querySelector('#txtProfileImageClaim').value = config.ProfileImageClaim || 'attributes.avatar';
                     });
@@ -123,6 +182,12 @@
                         config.ForceHttpsRedirect = document.querySelector('#chkForceHttps').checked;
                         config.AutoCreateUsers = document.querySelector('#chkAutoCreate').checked;
                         config.EnableGroupSync = document.querySelector('#chkGroupSync').checked;
+                        config.EnableContentPolicySync = document.querySelector('#chkContentPolicySync').checked;
+                        config.GGroup = document.querySelector('#txtGGroup').value;
+                        config.TvY7Group = document.querySelector('#txtTvY7Group').value;
+                        config.PgGroup = document.querySelector('#txtPgGroup').value;
+                        config.Pg13Group = document.querySelector('#txtPg13Group').value;
+                        config.Tv14Group = document.querySelector('#txtTv14Group').value;
                         config.EnableProfileImageSync = document.querySelector('#chkProfileImageSync').checked;
                         config.ProfileImageClaim = document.querySelector('#txtProfileImageClaim').value;
                         ApiClient.updatePluginConfiguration(pluginId, config).then(function () {
@@ -134,4 +199,5 @@
         </script>
     </div>
 </body>
+
 </html>

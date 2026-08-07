@@ -19,6 +19,12 @@ public class PluginConfiguration : BasePluginConfiguration
         AllowedGroup = "jellyfin-users";
         AutoCreateUsers = true;
         EnableGroupSync = true;
+        EnableContentPolicySync = false;
+        GGroup = string.Empty;
+        TvY7Group = string.Empty;
+        PgGroup = string.Empty;
+        Pg13Group = string.Empty;
+        Tv14Group = string.Empty;
         EnableProfileImageSync = true;
         ProfileImageClaim = "picture";
         ForceHttpsRedirect = false;
@@ -66,6 +72,36 @@ public class PluginConfiguration : BasePluginConfiguration
     /// Gets or sets a value indicating whether Authentik groups should sync to Jellyfin permissions.
     /// </summary>
     public bool EnableGroupSync { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether Authentik groups should sync to Jellyfin parental rating restrictions.
+    /// </summary>
+    public bool EnableContentPolicySync { get; set; }
+
+    /// <summary>
+    /// Gets or sets the Authentik group name that restricts users to G, TV-G, and TV-Y content.
+    /// </summary>
+    public string GGroup { get; set; }
+
+    /// <summary>
+    /// Gets or sets the Authentik group name that restricts users to TV-Y7 and below.
+    /// </summary>
+    public string TvY7Group { get; set; }
+
+    /// <summary>
+    /// Gets or sets the Authentik group name that restricts users to PG and TV-PG content.
+    /// </summary>
+    public string PgGroup { get; set; }
+
+    /// <summary>
+    /// Gets or sets the Authentik group name that restricts users to PG-13 and below.
+    /// </summary>
+    public string Pg13Group { get; set; }
+
+    /// <summary>
+    /// Gets or sets the Authentik group name that restricts users to TV-14 and below.
+    /// </summary>
+    public string Tv14Group { get; set; }
 
     /// <summary>
     /// Gets or sets a value indicating whether to sync the user's profile image from Authentik.

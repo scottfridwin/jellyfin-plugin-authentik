@@ -8,6 +8,7 @@ Single sign-on authentication for [Jellyfin](https://jellyfin.org/) using [Authe
 - **Automatic user provisioning** — creates Jellyfin users on first SSO login
 - **Group-based permissions** — map Authentik groups to Jellyfin admin/user roles
 - **Admin permission sync** — admin group members get full server management rights
+- **Content rating restrictions** — map optional Authentik groups to Jellyfin parental rating thresholds
 - **Profile image sync** — automatically sync user avatars from Authentik to Jellyfin
 - **Access control** — restrict Jellyfin access to specific Authentik groups
 - **Reverse proxy support** — force HTTPS redirect URIs for TLS-terminating proxies
@@ -63,7 +64,7 @@ To sync user avatars from Authentik to Jellyfin, you need to expose the avatar U
 > ```
 > https://scottfridwin.github.io/jellyfin-plugin-authentik/dev/manifest.json
 > ```
-> Dev builds are updated on every push to the `dev` branch and may be unstable.
+> Dev builds are updated on every push to the `dev` branch and may be unstable. Use only for testing.
 
 #### Manual Installation
 
@@ -87,9 +88,46 @@ After installation, go to **Dashboard → Plugins → Authentik SSO** and config
 | **Required Group** | Authentik group required to log in (leave blank to allow all Authentik users) | `jellyfin-users` |
 | **Auto-Create Users** | Create Jellyfin accounts on first SSO login | `true` |
 | **Enable Group Sync** | Sync Authentik groups → Jellyfin permissions on each login | `true` |
+| **Enable Content Policy Sync** | Sync Authentik groups → Jellyfin parental rating restrictions on each login | `false` |
+| **G / TV-G / TV-Y Group** | Optional Authentik group that restricts users to G, TV-G, and TV-Y content | *(empty)* |
+| **TV-Y7 Group** | Optional Authentik group that restricts users to TV-Y7 and below | *(empty)* |
+| **PG / TV-PG Group** | Optional Authentik group that restricts users to PG, TV-PG, and below | *(empty)* |
+| **PG-13 Group** | Optional Authentik group that restricts users to PG-13 and below | *(empty)* |
+| **TV-14 Group** | Optional Authentik group that restricts users to TV-14 and below | *(empty)* |
 | **Sync Profile Image** | Sync the user's profile image from Authentik on each login | `true` |
 | **Profile Image Claim Path** | Dot-notation path to the image URL in the userinfo response | `picture` |
 | **Force HTTPS Redirect** | Force `https://` in the OAuth callback URI (enable if behind a TLS-terminating reverse proxy) | `false` |
+
+### Content Rating Restrictions
+
+When **Enable Content Policy Sync** is on, the plugin checks the configured restriction groups and applies Jellyfin's normalized parental rating thresholds.
+
+- Users in the **Admin Group** always remain unrestricted.
+- Users in the **Required Group** but in none of the configured restriction groups remain unrestricted.
+- If a user matches multiple restriction groups, the plugin applies the **least restrictive** matching threshold.
+- Users in a restriction group also have **unrated content blocked**.
+
+This uses Jellyfin's built-in rating normalization, so movie and TV ratings align to the same parental score where possible. For example, `PG` and `TV-PG` map to the same threshold, while `PG-13` and `TV-14` remain separate thresholds.
+
+Safety behavior: if **Enable Content Policy Sync** is enabled, **Enable Group Sync** is disabled, and a restricted user cannot be loaded with an existing Jellyfin policy during login, access is denied for that login rather than risk unintentionally broad access.
+
+Example Authentik groups:
+
+- `jellyfin-users`
+- `jellyfin-admins`
+- `jellyfin-rating-g`
+- `jellyfin-rating-y7`
+- `jellyfin-rating-pg`
+- `jellyfin-rating-pg13`
+- `jellyfin-rating-tv14`
+
+Example results:
+
+- `jellyfin-users` only: unrestricted standard user
+- `jellyfin-users` + `jellyfin-rating-g`: restricted to G, TV-G, and TV-Y content
+- `jellyfin-users` + `jellyfin-rating-pg`: restricted to PG, TV-PG, and below
+- `jellyfin-users` + `jellyfin-rating-pg` + `jellyfin-rating-tv14`: restricted to TV-14 and below
+- `jellyfin-users` + `jellyfin-admins` + any restriction group: unrestricted admin user
 
 ## Usage
 
@@ -228,6 +266,8 @@ When **Enable Group Sync** is on, every login updates the user's Jellyfin permis
 |-----------------|---------------------|
 | Admin Group member | Full admin: manage server, delete content, remote control, live TV management |
 | Allowed Group member (non-admin) | Standard user: playback, transcoding, remote access, all libraries |
+
+When **Enable Content Policy Sync** is on, every login also updates the user's Jellyfin `MaxParentalRating` based on the configured restriction groups.
 
 ## Development
 
