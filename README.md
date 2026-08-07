@@ -4,7 +4,7 @@ Single sign-on authentication for [Jellyfin](https://jellyfin.org/) using [Authe
 
 ## Features
 
-- **OIDC authentication** via Authentik with PKCE (Proof Key for Code Exchange)
+- **OIDC authentication** via Authentik with PKCE (Proof Key for Code Exchange) 
 - **Automatic user provisioning** — creates Jellyfin users on first SSO login
 - **Group-based permissions** — map Authentik groups to Jellyfin admin/user roles
 - **Admin permission sync** — admin group members get full server management rights
