@@ -74,7 +74,11 @@ public class UserSyncService
                 throw new UnauthorizedAccessException($"User '{username}' does not exist and auto-creation is disabled.");
             }
 
-            _logger.LogInformation("Creating new Jellyfin user for Authentik user: {Username}", username);
+            if (_logger.IsEnabled(LogLevel.Information))
+            {
+                _logger.LogInformation("Creating new Jellyfin user for Authentik user: {Username}", username);
+            }
+
             user = await _userManager.CreateUserAsync(username).ConfigureAwait(false);
 
             // Set a random password so the user cannot log in with local credentials
@@ -118,11 +122,14 @@ public class UserSyncService
 
             await _userManager.UpdatePolicyAsync(user.Id, policy).ConfigureAwait(false);
 
-            _logger.LogInformation(
-                "Synced Jellyfin policy for {Username}: Admin={IsAdmin}, MaxParentalRating={MaxParentalRating}",
-                username,
-                isAdmin,
-                policy.MaxParentalRating);
+            if (_logger.IsEnabled(LogLevel.Information))
+            {
+                _logger.LogInformation(
+                    "Synced Jellyfin policy for {Username}: Admin={IsAdmin}, MaxParentalRating={MaxParentalRating}",
+                    username,
+                    isAdmin,
+                    policy.MaxParentalRating);
+            }
         }
 
         if (config.EnableProfileImageSync && !string.IsNullOrEmpty(userInfo.Picture))
@@ -138,9 +145,12 @@ public class UserSyncService
             {
                 await _userManager.ClearProfileImageAsync(freshUser).ConfigureAwait(false);
                 await _userManager.UpdateUserAsync(freshUser).ConfigureAwait(false);
-                _logger.LogInformation(
-                    "No profile image claim for {Username}, cleared to use Jellyfin default",
-                    user.Username);
+                if (_logger.IsEnabled(LogLevel.Information))
+                {
+                    _logger.LogInformation(
+                        "No profile image claim for {Username}, cleared to use Jellyfin default",
+                        user.Username);
+                }
             }
         }
 
@@ -224,15 +234,22 @@ public class UserSyncService
     {
         var config = Plugin.Instance!.Configuration;
 
-        _logger.LogDebug(
-            "Checking authorization for {Username}. Groups received: [{Groups}]",
-            userInfo.PreferredUsername,
-            string.Join(", ", userInfo.Groups));
+        if (_logger.IsEnabled(LogLevel.Debug))
+        {
+            _logger.LogDebug(
+                "Checking authorization for {Username}. Groups received: [{Groups}]",
+                userInfo.PreferredUsername,
+                string.Join(", ", userInfo.Groups));
+        }
 
         // If no allowed group is configured, allow all authenticated users
         if (string.IsNullOrWhiteSpace(config.AllowedGroup))
         {
-            _logger.LogDebug("No AllowedGroup configured, granting access to {Username}", userInfo.PreferredUsername);
+            if (_logger.IsEnabled(LogLevel.Debug))
+            {
+                _logger.LogDebug("No AllowedGroup configured, granting access to {Username}", userInfo.PreferredUsername);
+            }
+
             return true;
         }
 
@@ -265,7 +282,11 @@ public class UserSyncService
 
             if (picture.StartsWith("data:", StringComparison.OrdinalIgnoreCase))
             {
-                _logger.LogDebug("picture is a data URI, parsing for {Username}", user.Username);
+                if (_logger.IsEnabled(LogLevel.Debug))
+                {
+                    _logger.LogDebug("picture is a data URI, parsing for {Username}", user.Username);
+                }
+
                 // Parse data URI: data:[<mediatype>][;base64],<data>
                 var commaIndex = picture.IndexOf(',', StringComparison.Ordinal);
                 if (commaIndex < 0)
@@ -296,7 +317,11 @@ public class UserSyncService
             }
             else
             {
-                _logger.LogDebug("picture is not a data URI, treating as URL for {Username}", user.Username);
+                if (_logger.IsEnabled(LogLevel.Debug))
+                {
+                    _logger.LogDebug("picture is not a data URI, treating as URL for {Username}", user.Username);
+                }
+
                 // Treat as URL
                 var httpClient = _httpClientFactory.CreateClient("AuthentikPlugin");
                 using var response = await httpClient.GetAsync(new Uri(picture)).ConfigureAwait(false);
@@ -328,7 +353,11 @@ public class UserSyncService
                 var newHash = Convert.ToHexString(SHA256.HashData(imageBytes));
                 if (string.Equals(existingHash, newHash, StringComparison.OrdinalIgnoreCase))
                 {
-                    _logger.LogDebug("Profile image unchanged for {Username}, skipping sync", user.Username);
+                    if (_logger.IsEnabled(LogLevel.Debug))
+                    {
+                        _logger.LogDebug("Profile image unchanged for {Username}, skipping sync", user.Username);
+                    }
+
                     return;
                 }
             }
@@ -351,7 +380,10 @@ public class UserSyncService
             freshUser.ProfileImage = new ImageInfo(imagePath);
             await _userManager.UpdateUserAsync(freshUser).ConfigureAwait(false);
 
-            _logger.LogInformation("Synced profile image for {Username}", user.Username);
+            if (_logger.IsEnabled(LogLevel.Information))
+            {
+                _logger.LogInformation("Synced profile image for {Username}", user.Username);
+            }
         }
         catch (Exception ex)
         {

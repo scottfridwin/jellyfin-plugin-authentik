@@ -97,10 +97,13 @@ public class AuthentikController : ControllerBase
             return Problem("Failed to retrieve user information from Authentik.");
         }
 
-        _logger.LogInformation(
-            "OIDC callback for user {Username}, groups: [{Groups}]",
-            userInfo.PreferredUsername,
-            string.Join(", ", userInfo.Groups));
+        if (_logger.IsEnabled(LogLevel.Information))
+        {
+            _logger.LogInformation(
+                "OIDC callback for user {Username}, groups: [{Groups}]",
+                userInfo.PreferredUsername,
+                string.Join(", ", userInfo.Groups));
+        }
 
         if (!_userSyncService.IsAuthorized(userInfo))
         {
