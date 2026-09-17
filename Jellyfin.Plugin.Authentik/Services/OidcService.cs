@@ -125,7 +125,10 @@ public class OidcService
         if (userInfo is not null && !string.IsNullOrWhiteSpace(config.ProfileImageClaim))
         {
             userInfo.Picture = ExtractClaimValue(json, config.ProfileImageClaim);
-            _logger.LogDebug("userInfo.Picture: ${Picture}", userInfo.Picture);
+            if (_logger.IsEnabled(LogLevel.Debug))
+            {
+                _logger.LogDebug("userInfo.Picture: ${Picture}", userInfo.Picture);
+            }
         }
 
         return userInfo;

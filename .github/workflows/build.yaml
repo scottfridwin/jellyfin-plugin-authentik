@@ -20,7 +20,7 @@ on:
         type: string
 
 env:
-  DOTNET_VERSION: "9.0.x"
+  DOTNET_VERSION: "10.0.x"
   PLUGIN_NAME: "Jellyfin.Plugin.Authentik"
 
 jobs:
@@ -123,7 +123,7 @@ jobs:
               owner: "scottfridwin",
               versions: [{
                 version: $version,
-                targetAbi: "10.11.0.0",
+                targetAbi: "12.1.0.0",
                 sourceUrl: $sourceUrl,
                 checksum: $checksum,
                 timestamp: $timestamp,
