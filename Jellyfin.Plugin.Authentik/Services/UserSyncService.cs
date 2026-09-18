@@ -353,6 +353,22 @@ public class UserSyncService
                 var newHash = Convert.ToHexString(SHA256.HashData(imageBytes));
                 if (string.Equals(existingHash, newHash, StringComparison.OrdinalIgnoreCase))
                 {
+                    // The file already matches the current avatar, but a server migration can drop
+                    // the user's ProfileImage record while leaving the file on disk. Re-link it so
+                    // Jellyfin serves the avatar instead of falling back to its default.
+                    var existingUser = _userManager.GetUserByName(user.Username);
+                    if (existingUser is not null && existingUser.ProfileImage is null)
+                    {
+                        existingUser.ProfileImage = new ImageInfo(imagePath);
+                        await _userManager.UpdateUserAsync(existingUser).ConfigureAwait(false);
+                        if (_logger.IsEnabled(LogLevel.Information))
+                        {
+                            _logger.LogInformation("Re-linked existing profile image for {Username}", user.Username);
+                        }
+
+                        return;
+                    }
+
                     if (_logger.IsEnabled(LogLevel.Debug))
                     {
                         _logger.LogDebug("Profile image unchanged for {Username}, skipping sync", user.Username);
