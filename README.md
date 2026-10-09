@@ -49,7 +49,7 @@ Download the zip for your Jellyfin version from [Releases](https://github.com/sc
 
 1. **Applications → Providers → Create → OAuth2/OpenID Provider**
    - **Client type:** Confidential
-   - **Redirect URI (strict):** `https://jellyfin.example.com/authentik/callback`
+   - **Redirect URI (strict):** `https://jellyfin.example.com/authentik/callback` (if Jellyfin uses a **Base URL**, include it, e.g. `https://example.com/jellyfin/authentik/callback`)
    - Keep the default scopes (`openid`, `email`, `profile`). The default `profile` mapping includes the user's groups, which the plugin needs.
 2. **Applications → Applications → Create**, link it to the provider, and bind the users or groups who should see it.
 3. Create the groups you want to use, for example `jellyfin-users` and `jellyfin-admins`.
@@ -76,13 +76,15 @@ Open **Dashboard → Plugins → Authentik SSO**:
 
 ### 3. Add a login button
 
-Users sign in at `https://jellyfin.example.com/authentik/login`. To show a button on the Jellyfin login page, paste this into **Dashboard → General → Login disclaimer**:
+Users sign in at `https://jellyfin.example.com/authentik/login` (plus your Base URL, if any). To show a button on the Jellyfin login page, paste this into **Dashboard → General → Login disclaimer**:
 
 ```html
-<form action="/authentik/login" class="sso-login-form">
+<form action="../authentik/login" class="sso-login-form">
   <button type="submit" class="sso-login-btn">Sign in with Authentik</button>
 </form>
 ```
+
+The relative `../authentik/login` path works whether or not Jellyfin uses a Base URL.
 
 …and this into **Dashboard → General → Custom CSS code**:
 
@@ -113,13 +115,12 @@ If you keep avatars in a user attribute instead, see [docs/customization.md](doc
 - **Accounts are matched by username.** An Authentik user whose `preferred_username` matches an existing Jellyfin user signs in to that account, and (with permission sync on) that account's admin status and permissions are then managed by Authentik groups.
 - **SSO users cannot use a local password.** Auto-created accounts get a random password. Keep a local administrator account as a fallback in case Authentik is unavailable.
 - **Apps with a native login screen** (Android TV, Swiftfin, Findroid, Kodi, …) cannot open the SSO page. Sign in on the web, then authorize the app with **Quick Connect** (enable it under **Dashboard → General**).
-- **Sub-path hosting is not supported.** Jellyfin must be served from the root of its domain (no **Base URL** under **Dashboard → Networking**).
 
 ## Troubleshooting
 
 | Symptom | What to check |
 | --- | --- |
-| Authentik shows *redirect_uri mismatch* | The redirect URI in Authentik must exactly match `https://<your-jellyfin-host>/authentik/callback`. Behind a TLS-terminating proxy, enable **Force HTTPS in redirect URI** and make sure the proxy forwards the original `Host` header. |
+| Authentik shows *redirect_uri mismatch* | The redirect URI in Authentik must exactly match `https://<your-jellyfin-host>[/<base-url>]/authentik/callback`. Behind a TLS-terminating proxy, enable **Force HTTPS in redirect URI** and make sure the proxy forwards the original `Host` header. |
 | *You are not authorized to access Jellyfin* | The user is in neither the Required Group nor the Admin Group, or the provider is not sending the `groups` claim (keep the default `profile` scope mapping). |
 | *Login failed* after returning from Authentik | Check the Jellyfin log for lines from `Jellyfin.Plugin.Authentik`. |
 
