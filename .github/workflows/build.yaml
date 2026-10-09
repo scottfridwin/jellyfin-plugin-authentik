@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - dev
     paths-ignore:
       - "**/*.md"
   # No paths-ignore: "Test" is a required check and must report on every PR
@@ -67,16 +66,13 @@ jobs:
         run: dotnet test --no-build --configuration Release --verbosity normal
 
   # ----------------------------------------------------------
-  # Build: Publish plugin artifact + dev manifest (on push to main)
+  # Build: Publish the plugin as a workflow artifact (also on PRs)
   # ----------------------------------------------------------
   build:
     name: Build Plugin
     needs: test
     runs-on: ubuntu-latest
-    # Also runs on PRs so packaging breakage is caught before merge
     if: github.event_name != 'workflow_dispatch' || github.event.inputs.release_tag == ''
-    permissions:
-      contents: write
 
     steps:
       - name: Checkout repository
@@ -87,84 +83,20 @@ jobs:
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
-      - name: Determine version
-        id: version
-        run: |
-          SHORT_SHA=$(echo "$GITHUB_SHA" | cut -c1-7)
-          echo "short_sha=${SHORT_SHA}" >> "$GITHUB_OUTPUT"
-          # Dev builds: use run number for unique incrementing version (revision max 65535)
-          VERSION="0.0.0.${{ github.run_number }}"
-          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-
       - name: Build plugin
         run: |
           dotnet publish \
             "${{ env.PLUGIN_NAME }}/${{ env.PLUGIN_NAME }}.csproj" \
             --configuration=Release \
             --output=artifacts \
-            -p:Version=${{ steps.version.outputs.version }}
-
-      - name: Create plugin zip
-        run: |
-          cd artifacts
-          zip -r "../${{ env.PLUGIN_NAME }}-dev-${{ steps.version.outputs.short_sha }}.zip" .
+            -p:Version=0.0.0.${{ github.run_number }}
 
       - name: Upload build artifact
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
-          name: ${{ env.PLUGIN_NAME }}-${{ steps.version.outputs.short_sha }}
+          name: ${{ env.PLUGIN_NAME }}-${{ github.sha }}
           path: artifacts/
           if-no-files-found: error
-
-      - name: Publish dev manifest to GitHub Pages
-        if: github.ref == 'refs/heads/dev' && github.event_name == 'push'
-        run: |
-          PLUGIN_NAME="${{ env.PLUGIN_NAME }}"
-          VERSION="${{ steps.version.outputs.version }}"
-          SHORT_SHA="${{ steps.version.outputs.short_sha }}"
-          ZIP_NAME="${PLUGIN_NAME}-dev-${SHORT_SHA}.zip"
-          CHECKSUM="$(md5sum "${ZIP_NAME}" | awk '{print $1}')"
-          TIMESTAMP="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
-          SOURCE_URL="https://${{ github.repository_owner }}.github.io/jellyfin-plugin-authentik/dev/${ZIP_NAME}"
-          TARGET_ABI=$(grep 'targetAbi:' build.yaml | sed 's/.*"\(.*\)"/\1/')
-
-          jq -n \
-            --arg version "${VERSION}" \
-            --arg targetAbi "${TARGET_ABI}" \
-            --arg sourceUrl "$SOURCE_URL" \
-            --arg checksum "$CHECKSUM" \
-            --arg timestamp "$TIMESTAMP" \
-            '[{
-              category: "Authentication",
-              description: "Single sign-on authentication for Jellyfin using Authentik as the OpenID Connect provider.",
-              guid: "f4c1d2a3-b5e6-4789-9abc-def012345678",
-              name: "Authentik SSO (Dev)",
-              overview: "Authenticate with Authentik OIDC (development build)",
-              owner: "scottfridwin",
-              versions: [{
-                version: $version,
-                targetAbi: $targetAbi,
-                sourceUrl: $sourceUrl,
-                checksum: $checksum,
-                timestamp: $timestamp,
-                changelog: ("Dev build " + $version)
-              }]
-            }]' > dev-manifest.json
-
-          # Deploy to gh-pages
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git stash --include-untracked
-          git fetch origin gh-pages:gh-pages 2>/dev/null && git checkout gh-pages || { git checkout --orphan gh-pages; git rm -rf . 2>/dev/null || true; }
-
-          mkdir -p dev
-          git stash pop 2>/dev/null || true
-          cp "${ZIP_NAME}" dev/ 2>/dev/null || cp "../${ZIP_NAME}" dev/ 2>/dev/null || true
-          cp dev-manifest.json dev/manifest.json 2>/dev/null || true
-
-          git add dev/
-          git commit -m "Update dev manifest (${SHORT_SHA})" --allow-empty
-          git push origin gh-pages
 
   # ----------------------------------------------------------
   # Release check: auto-release Renovate merges that change the shipped plugin

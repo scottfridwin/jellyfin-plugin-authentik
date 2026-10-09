@@ -1,296 +1,135 @@
-# Jellyfin Plugin: Authentik SSO
+# Authentik SSO for Jellyfin
 
-Single sign-on authentication for [Jellyfin](https://jellyfin.org/) using [Authentik](https://goauthentik.io/) as the OpenID Connect identity provider.
+[![Build](https://img.shields.io/github/actions/workflow/status/scottfridwin/jellyfin-plugin-authentik/build.yaml?branch=main&label=build)](https://github.com/scottfridwin/jellyfin-plugin-authentik/actions/workflows/build.yaml)
+[![Release](https://img.shields.io/github/v/release/scottfridwin/jellyfin-plugin-authentik)](https://github.com/scottfridwin/jellyfin-plugin-authentik/releases/latest)
+[![Jellyfin](https://img.shields.io/badge/dynamic/yaml?url=https%3A%2F%2Fraw.githubusercontent.com%2Fscottfridwin%2Fjellyfin-plugin-authentik%2Fmain%2Fbuild.yaml&query=%24.targetAbi&label=Jellyfin&logo=jellyfin&color=00a4dc)](https://jellyfin.org/)
+[![Downloads](https://img.shields.io/github/downloads/scottfridwin/jellyfin-plugin-authentik/total)](https://github.com/scottfridwin/jellyfin-plugin-authentik/releases)
+[![License](https://img.shields.io/github/license/scottfridwin/jellyfin-plugin-authentik)](LICENSE)
+
+Sign in to [Jellyfin](https://jellyfin.org/) with your [Authentik](https://goauthentik.io/) account. Users are created on first login, and their Authentik groups decide whether they can get in, whether they are admins, and which content ratings they can see.
+
+> [!NOTE]
+> **AI disclosure:** This project is built and maintained with substantial help from AI coding assistants (GitHub Copilot). AI is used to write and modify the code, tests, documentation and CI configuration, and to manage the repository. Dependency updates are merged and released automatically, without human review, when the automated tests pass. Review the code and test it in your own environment before relying on it for access control.
 
 ## Features
 
-- **OIDC authentication** via Authentik with PKCE (Proof Key for Code Exchange)
-- **Automatic user provisioning** — creates Jellyfin users on first SSO login
-- **Group-based permissions** — map Authentik groups to Jellyfin admin/user roles
-- **Admin permission sync** — admin group members get full server management rights
-- **Content rating restrictions** — map optional Authentik groups to Jellyfin parental rating thresholds
-- **Profile image sync** — automatically sync user avatars from Authentik to Jellyfin
-- **Access control** — restrict Jellyfin access to specific Authentik groups
-- **Reverse proxy support** — force HTTPS redirect URIs for TLS-terminating proxies
-- **Themed callback page** — dark-by-default login interstitial that respects `prefers-color-scheme` and Jellyfin's Custom CSS
-- **Minimal configuration** — only 3 required settings (URL, Client ID, Client Secret)
+- **Single sign-on** through Authentik (OpenID Connect with PKCE)
+- **Automatic user creation** on first login
+- **Access control** — only members of an Authentik group can sign in
+- **Admin mapping** — members of an Authentik group become Jellyfin administrators
+- **Parental controls** — map Authentik groups to maximum content ratings (G, PG, PG-13, TV-14, …)
+- **Profile pictures** synced from Authentik
+- **Works behind a reverse proxy**
+
+## Requirements
+
+- Jellyfin — the badge above shows the version the latest release targets; the plugin catalog automatically offers the newest release that is compatible with your server
+- Authentik with permission to create an OAuth2/OpenID provider
+
+## Installation
+
+1. In Jellyfin, open **Dashboard → Plugins → Repositories** and add:
+
+   ```text
+   https://scottfridwin.github.io/jellyfin-plugin-authentik/manifest.json
+   ```
+
+2. Open **Dashboard → Plugins → Catalog**, install **Authentik SSO**, and restart Jellyfin.
+
+<details>
+<summary>Manual installation</summary>
+
+Download the zip for your Jellyfin version from [Releases](https://github.com/scottfridwin/jellyfin-plugin-authentik/releases), extract it to `<jellyfin-data>/plugins/Jellyfin.Plugin.Authentik/`, and restart Jellyfin. The repository method above is preferred because Jellyfin then installs updates for you.
+
+</details>
 
 ## Setup
 
-### Authentik Side
+### 1. Create the provider in Authentik
 
-1. Create an **OAuth2/OpenID Provider** in Authentik
-   - **Authorization flow**: Use your standard authorization flow
-   - **Client type**: Confidential
-   - **Redirect URI**: `https://your-jellyfin-url/authentik/callback`
-   - **Scopes**: `openid`, `profile`, `email` (ensure `groups` scope is included — it is by default)
-2. Create an **Application** linked to the provider
-3. Assign users/groups to the application
+1. **Applications → Providers → Create → OAuth2/OpenID Provider**
+   - **Client type:** Confidential
+   - **Redirect URI (strict):** `https://jellyfin.example.com/authentik/callback`
+   - Keep the default scopes (`openid`, `email`, `profile`). The default `profile` mapping includes the user's groups, which the plugin needs.
+2. **Applications → Applications → Create**, link it to the provider, and bind the users or groups who should see it.
+3. Create the groups you want to use, for example `jellyfin-users` and `jellyfin-admins`.
 
-#### Profile Image Sync (Optional)
+Note the **Client ID** and **Client Secret** from the provider.
 
-To sync user avatars from Authentik to Jellyfin, you need to expose the avatar URL in the userinfo response:
+### 2. Configure the plugin
 
-1. Go to **Customization → Property Mappings → Create → Scope Mapping**
-2. Configure the mapping:
-   - **Name**: `Jellyfin Avatar`
-   - **Scope name**: `profile`
-   - **Expression**:
-     ```python
-     return {
-         "picture": request.user.avatar
-     }
-     ```
-3. Go to **Applications → Providers → Your Jellyfin Provider → Advanced protocol settings**
-4. Under **Scopes**, ensure the `profile` scope is selected (it should include your new mapping)
-
-> **Note:** If you store the avatar in a custom user attribute instead (e.g., `attributes.photo`), adjust the expression to `request.user.attributes.get("photo", "")` and update the **Profile Image Claim Path** in the Jellyfin plugin config to match (e.g., `photo`).
-
-### Jellyfin Side
-
-#### Installation via Plugin Repository (Recommended)
-
-1. Go to **Dashboard → Plugins → Repositories**
-2. Click **+** to add a new repository
-3. Enter the repository URL:
-   ```
-   https://scottfridwin.github.io/jellyfin-plugin-authentik/manifest.json
-   ```
-4. Go to **Dashboard → Plugins → Catalog**
-5. Search for **Authentik SSO** and click **Install**
-6. Restart Jellyfin
-
-> **Dev/testing builds:** To test pre-release builds, use this repository URL instead:
-> ```
-> https://scottfridwin.github.io/jellyfin-plugin-authentik/dev/manifest.json
-> ```
-> Dev builds are updated on every push to the `dev` branch and may be unstable. Use only for testing.
-
-#### Manual Installation
-
-1. Download the latest release from [GitHub Releases](https://github.com/scottfridwin/jellyfin-plugin-authentik/releases)
-2. Extract the zip file into your Jellyfin plugins directory:
-   ```
-   <jellyfin-data>/plugins/Jellyfin.Plugin.Authentik/
-   ```
-3. Restart Jellyfin
-
-#### Configuration
-
-After installation, go to **Dashboard → Plugins → Authentik SSO** and configure:
+Open **Dashboard → Plugins → Authentik SSO**:
 
 | Setting | Description | Default |
-|---------|-------------|---------|
-| **Authentik URL** | Your Authentik base URL (e.g., `https://auth.example.com`) | *(required)* |
-| **Client ID** | From the Authentik OAuth2 provider | *(required)* |
-| **Client Secret** | From the Authentik OAuth2 provider | *(required)* |
-| **Admin Group** | Authentik group name for Jellyfin admins | `jellyfin-admins` |
-| **Required Group** | Authentik group required to log in (leave blank to allow all Authentik users) | `jellyfin-users` |
-| **Auto-Create Users** | Create Jellyfin accounts on first SSO login | `true` |
-| **Enable Group Sync** | Sync Authentik groups → Jellyfin permissions on each login | `true` |
-| **Enable Content Policy Sync** | Sync Authentik groups → Jellyfin parental rating restrictions on each login | `false` |
-| **G / TV-G / TV-Y Group** | Optional Authentik group that restricts users to G, TV-G, and TV-Y content | *(empty)* |
-| **TV-Y7 Group** | Optional Authentik group that restricts users to TV-Y7 and below | *(empty)* |
-| **PG / TV-PG Group** | Optional Authentik group that restricts users to PG, TV-PG, and below | *(empty)* |
-| **PG-13 Group** | Optional Authentik group that restricts users to PG-13 and below | *(empty)* |
-| **TV-14 Group** | Optional Authentik group that restricts users to TV-14 and below | *(empty)* |
-| **Sync Profile Image** | Sync the user's profile image from Authentik on each login | `true` |
-| **Profile Image Claim Path** | Dot-notation path to the image URL in the userinfo response | `picture` |
-| **Force HTTPS Redirect** | Force `https://` in the OAuth callback URI (enable if behind a TLS-terminating reverse proxy) | `false` |
+| --- | --- | --- |
+| Authentik URL | Base URL of Authentik, e.g. `https://auth.example.com` | *required* |
+| Client ID / Client Secret | From the Authentik provider | *required* |
+| Admin Group | Members become Jellyfin administrators | `jellyfin-admins` |
+| Required Group | Members (and admins) may sign in. Leave blank to allow every Authentik user who can reach the application | `jellyfin-users` |
+| Force HTTPS in redirect URI | Enable when a reverse proxy terminates TLS and Authentik reports a `redirect_uri` mismatch | off |
+| Auto-create users | Create a Jellyfin account on first login | on |
+| Sync groups to permissions | Re-apply admin/standard permissions on every login ([details](docs/permissions.md#permission-sync)) | on |
+| Sync groups to content ratings | Apply parental rating limits from the rating groups below ([details](docs/permissions.md#content-rating-restrictions)) | off |
+| G / TV-Y7 / PG / PG-13 / TV-14 Group | Optional groups that cap a user's maximum rating | *empty* |
+| Sync profile image | Copy the user's avatar from Authentik on every login | on |
+| Profile Image Claim Path | Where to find the image URL in the userinfo response | `picture` |
 
-### Content Rating Restrictions
+### 3. Add a login button
 
-When **Enable Content Policy Sync** is on, the plugin checks the configured restriction groups and applies Jellyfin's normalized parental rating thresholds.
-
-- Users in the **Admin Group** always remain unrestricted.
-- Users in the **Required Group** but in none of the configured restriction groups remain unrestricted.
-- If a user matches multiple restriction groups, the plugin applies the **least restrictive** matching threshold.
-- Users in a restriction group also have **unrated content blocked**.
-
-This uses Jellyfin's built-in rating normalization, so movie and TV ratings align to the same parental score where possible. For example, `PG` and `TV-PG` map to the same threshold, while `PG-13` and `TV-14` remain separate thresholds.
-
-Safety behavior: if **Enable Content Policy Sync** is enabled, **Enable Group Sync** is disabled, and a restricted user cannot be loaded with an existing Jellyfin policy during login, access is denied for that login rather than risk unintentionally broad access.
-
-Example Authentik groups:
-
-- `jellyfin-users`
-- `jellyfin-admins`
-- `jellyfin-rating-g`
-- `jellyfin-rating-y7`
-- `jellyfin-rating-pg`
-- `jellyfin-rating-pg13`
-- `jellyfin-rating-tv14`
-
-Example results:
-
-- `jellyfin-users` only: unrestricted standard user
-- `jellyfin-users` + `jellyfin-rating-g`: restricted to G, TV-G, and TV-Y content
-- `jellyfin-users` + `jellyfin-rating-pg`: restricted to PG, TV-PG, and below
-- `jellyfin-users` + `jellyfin-rating-pg` + `jellyfin-rating-tv14`: restricted to TV-14 and below
-- `jellyfin-users` + `jellyfin-admins` + any restriction group: unrestricted admin user
-
-## Usage
-
-Navigate to `https://your-jellyfin-url/authentik/login` to initiate SSO login.
-
-### Login Button (Optional)
-
-To add a "Sign in with Authentik" button on the login page, use two Jellyfin settings:
-
-#### 1. Login Disclaimer (Dashboard → General → Login Disclaimer)
-
-Paste this HTML:
+Users sign in at `https://jellyfin.example.com/authentik/login`. To show a button on the Jellyfin login page, paste this into **Dashboard → General → Login disclaimer**:
 
 ```html
 <form action="/authentik/login" class="sso-login-form">
-  <button type="submit" class="sso-login-btn">
-    Sign in with Authentik
-  </button>
+  <button type="submit" class="sso-login-btn">Sign in with Authentik</button>
 </form>
 ```
 
-#### 2. Custom CSS (Dashboard → General → Custom CSS Code)
-
-Paste this CSS (customize as needed):
+…and this into **Dashboard → General → Custom CSS code**:
 
 ```css
-/* SSO Login Button */
-.sso-login-form {
-  margin-top: 1.5em;
-  text-align: center;
-}
-
+.sso-login-form { margin-top: 1.5em; text-align: center; }
 .sso-login-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5em;
-  padding: 0.75em 1.5em;
-  width: 100%;
-  max-width: 300px;
-  background: #4051b5;
-  color: #fff;
-  border: none;
-  border-radius: 4px;
-  font-size: 1em;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background 0.2s;
+  width: 100%; max-width: 300px; padding: 0.75em 1.5em;
+  background: #4051b5; color: #fff; border: none; border-radius: 4px;
+  font-size: 1em; cursor: pointer;
 }
-
-.sso-login-btn:hover {
-  background: #3444a3;
-}
-
-/* Optional: add a logo/icon before the text */
-/* .sso-login-btn::before {
-  content: '';
-  display: inline-block;
-  width: 20px;
-  height: 20px;
-  background: url('https://your-domain.com/logo.svg') no-repeat center/contain;
-} */
+.sso-login-btn:hover { background: #3444a3; }
 ```
 
-#### Customization Examples
+More styling options are in [docs/customization.md](docs/customization.md).
 
-**Add a logo image inside the button** — modify the Login Disclaimer HTML:
+### Optional: profile pictures
 
-```html
-<form action="/authentik/login" class="sso-login-form">
-  <button type="submit" class="sso-login-btn">
-    <img src="https://your-domain.com/logo.svg" alt="" class="sso-login-logo">
-    Sign in with Authentik
-  </button>
-</form>
+Authentik does not send avatars by default. Add a scope mapping under **Customization → Property Mappings → Create → Scope Mapping** with scope name `profile` and this expression, then select it on the provider:
+
+```python
+return {"picture": request.user.avatar}
 ```
 
-Then add to Custom CSS:
+If you keep avatars in a user attribute instead, see [docs/customization.md](docs/customization.md#profile-pictures-from-a-custom-attribute).
 
-```css
-.sso-login-logo {
-  width: 20px;
-  height: 20px;
-  object-fit: contain;
-}
-```
+## Good to know
 
-**Match your Authentik branding colors:**
+- **Accounts are matched by username.** An Authentik user whose `preferred_username` matches an existing Jellyfin user signs in to that account, and (with permission sync on) that account's admin status and permissions are then managed by Authentik groups.
+- **SSO users cannot use a local password.** Auto-created accounts get a random password. Keep a local administrator account as a fallback in case Authentik is unavailable.
+- **Apps with a native login screen** (Android TV, Swiftfin, Findroid, Kodi, …) cannot open the SSO page. Sign in on the web, then authorize the app with **Quick Connect** (enable it under **Dashboard → General**).
+- **Sub-path hosting is not supported.** Jellyfin must be served from the root of its domain (no **Base URL** under **Dashboard → Networking**).
 
-```css
-.sso-login-btn {
-  background: #fd4b2d; /* Authentik orange */
-}
-.sso-login-btn:hover {
-  background: #e0432a;
-}
-```
+## Troubleshooting
 
-**Full-width button with rounded corners:**
+| Symptom | What to check |
+| --- | --- |
+| Authentik shows *redirect_uri mismatch* | The redirect URI in Authentik must exactly match `https://<your-jellyfin-host>/authentik/callback`. Behind a TLS-terminating proxy, enable **Force HTTPS in redirect URI** and make sure the proxy forwards the original `Host` header. |
+| *You are not authorized to access Jellyfin* | The user is in neither the Required Group nor the Admin Group, or the provider is not sending the `groups` claim (keep the default `profile` scope mapping). |
+| *Login failed* after returning from Authentik | Check the Jellyfin log for lines from `Jellyfin.Plugin.Authentik`. |
 
-```css
-.sso-login-btn {
-  max-width: 100%;
-  border-radius: 2em;
-  padding: 1em;
-}
-```
+## Further reading
 
-### Callback Page Styling
-
-The intermediate "Completing login..." page uses a dark theme by default and respects `prefers-color-scheme`. It also loads Jellyfin's Custom CSS, so you can override its appearance:
-
-```css
-/* Override the SSO callback page */
-.sso-container { background: #1a1a2e; }
-.sso-spinner { border-top-color: #e94560; }
-```
-
-## How It Works
-
-1. User clicks "Sign in with Authentik" (or navigates to `/authentik/login`)
-2. Plugin generates a PKCE code verifier/challenge and redirects to Authentik
-3. User authenticates in Authentik
-4. Authentik redirects back to `/authentik/callback` with an authorization code
-5. Plugin exchanges the code for tokens, fetches user info from Authentik
-6. Plugin checks group membership for authorization
-7. Plugin creates/updates the Jellyfin user and syncs permissions
-8. A callback page completes the login client-side, storing the session in the browser
-9. User is redirected to the Jellyfin home page
-
-### Permission Sync
-
-When **Enable Group Sync** is on, every login updates the user's Jellyfin permissions:
-
-| Authentik Group | Jellyfin Permissions |
-|-----------------|---------------------|
-| Admin Group member | Full admin: manage server, delete content, remote control, live TV management |
-| Allowed Group member (non-admin) | Standard user: playback, transcoding, remote access, all libraries |
-
-When **Enable Content Policy Sync** is on, every login also updates the user's Jellyfin `MaxParentalRating` based on the configured restriction groups.
-
-## Development
-
-### Prerequisites
-
-- .NET 9.0 SDK
-
-### Build
-
-```bash
-dotnet build
-```
-
-### Test
-
-```bash
-dotnet test
-```
-
-### Dev Container
-
-Open in VS Code with the Dev Containers extension for a pre-configured development environment.
+- [Permissions and content ratings](docs/permissions.md)
+- [Customization](docs/customization.md)
+- [How it works](docs/how-it-works.md)
+- [Development](docs/development.md)
 
 ## License
 
-GPL-3.0 — see [LICENSE](LICENSE) for details.
+[GPL-3.0](LICENSE)
