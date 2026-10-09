@@ -3,6 +3,10 @@
     "config:recommended"
   ],
   "prCreation": "immediate",
+  "automerge": true,
+  "automergeType": "pr",
+  "minimumReleaseAge": "3 days",
+  "internalChecksFilter": "strict",
   "nuget": {
     "enabled": true
   },
@@ -23,7 +27,7 @@
   ],
   "packageRules": [
     {
-      "description": "Jellyfin.* must move together (NU1605) and only after the server runs that version",
+      "description": "Jellyfin.* must move together (NU1605); targetAbi follows via the regex manager",
       "matchPackageNames": [
         "Jellyfin.Controller",
         "Jellyfin.Model",
