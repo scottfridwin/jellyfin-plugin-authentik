@@ -6,6 +6,40 @@
   "nuget": {
     "enabled": true
   },
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Keep plugin targetAbi in step with the Jellyfin packages",
+      "managerFilePatterns": [
+        "/(^|/)build\\.yaml$/"
+      ],
+      "matchStrings": [
+        "targetAbi:\\s*\"(?<currentValue>\\d+\\.\\d+\\.\\d+)\\.0\""
+      ],
+      "depNameTemplate": "Jellyfin.Controller",
+      "datasourceTemplate": "nuget",
+      "versioningTemplate": "semver"
+    }
+  ],
+  "packageRules": [
+    {
+      "description": "Jellyfin.* must move together (NU1605) and only after the server runs that version",
+      "matchPackageNames": [
+        "Jellyfin.Controller",
+        "Jellyfin.Model",
+        "Jellyfin.Data"
+      ],
+      "groupName": "Jellyfin packages"
+    },
+    {
+      "description": "Jellyfin 12.x targets net10.0; stay on the .NET 10 SDK",
+      "matchDepNames": [
+        "mcr.microsoft.com/dotnet/sdk",
+        "dotnet-sdk"
+      ],
+      "allowedVersions": "/^10\\./"
+    }
+  ],
   "assignees": [
     "scottfridwin"
   ]
