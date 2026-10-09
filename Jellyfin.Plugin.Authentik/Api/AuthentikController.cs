@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Concurrent;
+using System.Net;
 using System.Net.Mime;
+using System.Text.Json;
 using System.Threading.Tasks;
 using Jellyfin.Plugin.Authentik.Services;
 using MediaBrowser.Controller.Authentication;
@@ -116,7 +118,7 @@ public class AuthentikController : ControllerBase
         var completionState = Guid.NewGuid().ToString("N");
         PendingAuths[completionState] = new PendingAuth(string.Empty, DateTime.UtcNow) { UserId = userId, Username = userInfo.PreferredUsername };
 
-        return Content(GenerateCallbackHtml(completionState), MediaTypeNames.Text.Html);
+        return Content(GenerateCallbackHtml(completionState, Request.PathBase.Value ?? string.Empty), MediaTypeNames.Text.Html);
     }
 
     /// <summary>
@@ -153,7 +155,13 @@ public class AuthentikController : ControllerBase
         return Ok(result);
     }
 
-    private static string GenerateCallbackHtml(string state)
+    /// <summary>
+    /// Builds the page that completes the login in the browser.
+    /// </summary>
+    /// <param name="state">The one-time completion state.</param>
+    /// <param name="pathBase">Jellyfin's Base URL (request path base), e.g. <c>/jellyfin</c>, or empty.</param>
+    /// <returns>The HTML page.</returns>
+    internal static string GenerateCallbackHtml(string state, string pathBase)
     {
         var template = """
             <!DOCTYPE html>
@@ -162,7 +170,7 @@ public class AuthentikController : ControllerBase
                 <meta charset="utf-8">
                 <meta name="viewport" content="width=device-width, initial-scale=1">
                 <title>Authentik SSO - Completing login...</title>
-                <link rel="stylesheet" href="/web/custom.css" type="text/css">
+                <link rel="stylesheet" href="__BASE_ATTR__/web/custom.css" type="text/css">
                 <style>
                     :root {
                         --sso-bg: #101010;
@@ -210,8 +218,9 @@ public class AuthentikController : ControllerBase
                 </div>
                 <script>
                     const state = '__STATE__';
-                    const baseUrl = window.location.origin;
-                    fetch(baseUrl + '/authentik/auth', {
+                    const basePath = __BASE_JS__;
+                    const serverUrl = window.location.origin + basePath;
+                    fetch(serverUrl + '/authentik/auth', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
@@ -225,7 +234,7 @@ public class AuthentikController : ControllerBase
                     .then(r => r.json())
                     .then(data => {
                         const server = {
-                            ManualAddress: window.location.origin,
+                            ManualAddress: serverUrl,
                             Id: data.ServerId,
                             AccessToken: data.AccessToken,
                             UserId: data.User.Id,
@@ -234,7 +243,7 @@ public class AuthentikController : ControllerBase
                         const credentials = { Servers: [server] };
                         localStorage.setItem('jellyfin_credentials', JSON.stringify(credentials));
                         localStorage.setItem('_jellyfin_credentials', JSON.stringify(credentials));
-                        window.location.href = '/web/#/home.html';
+                        window.location.href = basePath + '/web/#/home.html';
                     })
                     .catch(err => {
                         document.querySelector('.sso-spinner').style.display = 'none';
@@ -246,7 +255,11 @@ public class AuthentikController : ControllerBase
             </html>
             """;
 
-        return template.Replace("__STATE__", state, StringComparison.Ordinal);
+        // JsonSerializer escapes <, >, &, quotes and non-ASCII, so the value is safe inside <script>
+        return template
+            .Replace("__STATE__", state, StringComparison.Ordinal)
+            .Replace("__BASE_ATTR__", WebUtility.HtmlEncode(pathBase), StringComparison.Ordinal)
+            .Replace("__BASE_JS__", JsonSerializer.Serialize(pathBase), StringComparison.Ordinal);
     }
 
     private void CleanupExpired()

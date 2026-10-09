@@ -7,7 +7,7 @@ The button is plain HTML in **Dashboard → General → Login disclaimer**, styl
 ### Logo inside the button
 
 ```html
-<form action="/authentik/login" class="sso-login-form">
+<form action="../authentik/login" class="sso-login-form">
   <button type="submit" class="sso-login-btn">
     <img src="https://example.com/logo.svg" alt="" class="sso-login-logo">
     Sign in with Authentik
