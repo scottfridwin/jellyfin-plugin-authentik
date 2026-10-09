@@ -4,3 +4,4 @@ obj/
 .idea/
 artifacts
 .devcontainer/devcontainer-lock.json
+TestResults/
