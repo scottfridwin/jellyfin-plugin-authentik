@@ -1,12 +1,14 @@
 {
   "extends": [
-    "config:recommended"
+    "config:recommended",
+    "helpers:pinGitHubActionDigests"
   ],
   "prCreation": "immediate",
   "automerge": true,
   "automergeType": "pr",
   "minimumReleaseAge": "3 days",
   "internalChecksFilter": "strict",
+  "osvVulnerabilityAlerts": true,
   "nuget": {
     "enabled": true
   },
