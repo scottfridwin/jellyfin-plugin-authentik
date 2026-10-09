@@ -7,11 +7,10 @@ on:
       - dev
     paths-ignore:
       - "**/*.md"
+  # No paths-ignore: "Test" is a required check and must report on every PR
   pull_request:
     branches:
       - main
-    paths-ignore:
-      - "**/*.md"
   workflow_dispatch:
     inputs:
       release_tag:
@@ -34,6 +33,21 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
+
+      - name: Verify targetAbi matches Jellyfin packages
+        run: |
+          # A targetAbi older than the compiled-against packages would let older servers load the plugin
+          ABI=$(grep 'targetAbi:' build.yaml | sed 's/.*"\(.*\)"/\1/')
+          FAIL=0
+          for PKG in Jellyfin.Controller Jellyfin.Model; do
+            VER=$(grep -oP "Include=\"${PKG}\" Version=\"\K[^\"]+" "${{ env.PLUGIN_NAME }}/${{ env.PLUGIN_NAME }}.csproj")
+            echo "${PKG}=${VER} targetAbi=${ABI}"
+            if [[ "${VER}.0" != "${ABI}" ]]; then
+              echo "::error file=build.yaml::targetAbi ${ABI} does not match ${PKG} ${VER}"
+              FAIL=1
+            fi
+          done
+          exit $FAIL
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v6
@@ -108,9 +122,11 @@ jobs:
           CHECKSUM="$(md5sum "${ZIP_NAME}" | awk '{print $1}')"
           TIMESTAMP="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
           SOURCE_URL="https://${{ github.repository_owner }}.github.io/jellyfin-plugin-authentik/dev/${ZIP_NAME}"
+          TARGET_ABI=$(grep 'targetAbi:' build.yaml | sed 's/.*"\(.*\)"/\1/')
 
           jq -n \
             --arg version "${VERSION}" \
+            --arg targetAbi "${TARGET_ABI}" \
             --arg sourceUrl "$SOURCE_URL" \
             --arg checksum "$CHECKSUM" \
             --arg timestamp "$TIMESTAMP" \
@@ -123,7 +139,7 @@ jobs:
               owner: "scottfridwin",
               versions: [{
                 version: $version,
-                targetAbi: "12.1.0.0",
+                targetAbi: $targetAbi,
                 sourceUrl: $sourceUrl,
                 checksum: $checksum,
                 timestamp: $timestamp,
@@ -147,13 +163,51 @@ jobs:
           git push origin gh-pages
 
   # ----------------------------------------------------------
+  # Release check: auto-release Renovate merges that change the shipped plugin
+  # ----------------------------------------------------------
+  release-check:
+    name: Release check
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: test
+    runs-on: ubuntu-latest
+    outputs:
+      release: ${{ steps.check.outputs.release }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 2
+
+      - name: Decide
+        id: check
+        run: |
+          AUTHOR="$(git log -1 --format=%an)"
+          CHANGED="$(git diff --name-only HEAD~1 HEAD)"
+          echo "Author: ${AUTHOR}"
+          echo "Changed files:"; echo "${CHANGED}"
+          # Only plugin sources and the plugin manifest affect the shipped zip
+          if [[ "$AUTHOR" == "renovate[bot]" ]] && grep -qE '^(Jellyfin\.Plugin\.Authentik/|build\.yaml$|Directory\.Build\.props$)' <<< "$CHANGED"; then
+            echo "release=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "release=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  # ----------------------------------------------------------
   # Release: Create GitHub Release + update stable manifest on gh-pages
   # ----------------------------------------------------------
   release:
-    name: Release ${{ github.event.inputs.release_tag }}
-    if: github.event_name == 'workflow_dispatch' && github.event.inputs.release_tag != ''
-    needs: test
+    name: Release
+    if: >-
+      !cancelled() && needs.test.result == 'success' && (
+        (github.event_name == 'workflow_dispatch' && github.event.inputs.release_tag != '') ||
+        needs.release-check.outputs.release == 'true'
+      )
+    needs: [test, release-check]
     runs-on: ubuntu-latest
+    concurrency:
+      group: release
+      cancel-in-progress: false
     permissions:
       contents: write
 
@@ -179,6 +233,13 @@ jobs:
         id: version
         run: |
           VERSION_TAG="${{ github.event.inputs.release_tag }}"
+          if [[ -z "$VERSION_TAG" ]]; then
+            # Auto release: bump the patch part of the latest vA.B.C.D tag
+            LATEST=$(git tag --list 'v*.*.*.*' --sort=-version:refname | head -1)
+            IFS=. read -r MAJ MIN PAT _ <<< "${LATEST#v}"
+            VERSION_TAG="v${MAJ}.${MIN}.$((PAT + 1)).0"
+            echo "Auto release: ${LATEST} -> ${VERSION_TAG}"
+          fi
           VERSION="${VERSION_TAG#v}"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "tag=${VERSION_TAG}" >> "$GITHUB_OUTPUT"
@@ -192,6 +253,27 @@ jobs:
             --configuration=Release \
             --output=artifacts \
             -p:Version=${{ steps.version.outputs.version }}
+
+      - name: Write meta.json
+        run: |
+          # Jellyfin refuses to load a plugin whose meta.json targetAbi is newer than the server, even for manual zip installs
+          jq -n \
+            --arg version "${{ steps.version.outputs.version }}" \
+            --arg targetAbi "${{ steps.version.outputs.target_abi }}" \
+            --arg timestamp "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
+            '{
+              category: "Authentication",
+              changelog: ("Release " + $version),
+              description: "Single sign-on authentication for Jellyfin using Authentik as the OpenID Connect provider. Supports automatic user provisioning and group-based permission sync.",
+              guid: "f4c1d2a3-b5e6-4789-9abc-def012345678",
+              name: "Authentik SSO",
+              overview: "Authenticate with Authentik OIDC",
+              owner: "scottfridwin",
+              targetAbi: $targetAbi,
+              timestamp: $timestamp,
+              version: $version
+            }' > artifacts/meta.json
+          cat artifacts/meta.json
 
       - name: Create plugin zip
         run: |
