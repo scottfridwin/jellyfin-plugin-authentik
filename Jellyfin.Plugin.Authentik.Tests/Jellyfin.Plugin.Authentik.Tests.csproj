@@ -11,9 +11,9 @@
   <ItemGroup>
     <PackageReference Include="xunit.v3" Version="4.0.2" />
     <PackageReference Include="Moq" Version="4.21.0" />
-    <PackageReference Include="Jellyfin.Controller" Version="12.2.0" />
-    <PackageReference Include="Jellyfin.Model" Version="12.2.0" />
-    <PackageReference Include="Jellyfin.Data" Version="12.2.0" />
+    <PackageReference Include="Jellyfin.Controller" Version="12.3.0" />
+    <PackageReference Include="Jellyfin.Model" Version="12.3.0" />
+    <PackageReference Include="Jellyfin.Data" Version="12.3.0" />
   </ItemGroup>
 
   <ItemGroup>
