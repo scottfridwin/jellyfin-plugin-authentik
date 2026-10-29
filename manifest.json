@@ -38,6 +38,14 @@
         "checksum": "6cc04899a650dd70266897987445a67f",
         "timestamp": "2026-10-26T01:02:45Z",
         "changelog": "Release 2.0.4.0"
+      },
+      {
+        "version": "2.0.5.0",
+        "targetAbi": "12.4.0.0",
+        "sourceUrl": "https://github.com/scottfridwin/jellyfin-plugin-authentik/releases/download/v2.0.5.0/Jellyfin.Plugin.Authentik-2.0.5.0.zip",
+        "checksum": "68b9bb887c709f3e55ff69bef91ad821",
+        "timestamp": "2026-10-29T22:22:08Z",
+        "changelog": "Release 2.0.5.0"
       }
     ]
   }
