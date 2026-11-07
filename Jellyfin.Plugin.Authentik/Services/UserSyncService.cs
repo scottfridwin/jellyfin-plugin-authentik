@@ -354,11 +354,18 @@ public class UserSyncService
                 if (string.Equals(existingHash, newHash, StringComparison.OrdinalIgnoreCase))
                 {
                     // The file already matches the current avatar, but a server migration can drop
-                    // the user's ProfileImage record while leaving the file on disk. Re-link it so
-                    // Jellyfin serves the avatar instead of falling back to its default.
+                    // the user's ProfileImage record, or leave it pointing at an old path, while the
+                    // file stays on disk. Re-link it so Jellyfin serves the avatar instead of 404ing
+                    // or falling back to its default.
                     var existingUser = _userManager.GetUserByName(user.Username);
-                    if (existingUser is not null && existingUser.ProfileImage is null)
+                    if (existingUser is not null &&
+                        !string.Equals(existingUser.ProfileImage?.Path, imagePath, StringComparison.Ordinal))
                     {
+                        if (existingUser.ProfileImage is not null)
+                        {
+                            await _userManager.ClearProfileImageAsync(existingUser).ConfigureAwait(false);
+                        }
+
                         existingUser.ProfileImage = new ImageInfo(imagePath);
                         await _userManager.UpdateUserAsync(existingUser).ConfigureAwait(false);
                         if (_logger.IsEnabled(LogLevel.Information))

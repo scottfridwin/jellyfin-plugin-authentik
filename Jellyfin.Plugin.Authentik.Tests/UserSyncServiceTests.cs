@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Reflection;
@@ -18,6 +19,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Xunit;
+using ImageInfo = Jellyfin.Database.Implementations.Entities.ImageInfo;
 
 namespace Jellyfin.Plugin.Authentik.Tests;
 
@@ -31,6 +33,7 @@ public class UserSyncServiceTests : IDisposable
     private readonly ILogger<UserSyncService> _logger;
     private readonly UserSyncService _service;
     private readonly PluginConfiguration _config;
+    private readonly string _userConfigDir;
 
     public UserSyncServiceTests()
     {
@@ -39,7 +42,9 @@ public class UserSyncServiceTests : IDisposable
         _logger = NullLogger<UserSyncService>.Instance;
         var mockHttpClientFactory = new Mock<IHttpClientFactory>();
         mockHttpClientFactory.Setup(f => f.CreateClient(It.IsAny<string>())).Returns(new HttpClient());
+        _userConfigDir = Path.Combine(Path.GetTempPath(), "authentik-tests-" + Guid.NewGuid().ToString("N"));
         var mockConfigManager = new Mock<IServerConfigurationManager>();
+        mockConfigManager.Setup(m => m.ApplicationPaths.UserConfigurationDirectoryPath).Returns(_userConfigDir);
         _service = new UserSyncService(_mockUserManager.Object, _cryptoProvider, mockHttpClientFactory.Object, mockConfigManager.Object, _logger);
 
         _config = new PluginConfiguration
@@ -58,6 +63,11 @@ public class UserSyncServiceTests : IDisposable
     {
         // Reset Plugin.Instance to avoid test pollution
         SetPluginInstance(null);
+        if (Directory.Exists(_userConfigDir))
+        {
+            Directory.Delete(_userConfigDir, recursive: true);
+        }
+
         GC.SuppressFinalize(this);
     }
 
@@ -443,6 +453,74 @@ public class UserSyncServiceTests : IDisposable
         var result = await _service.SyncUserAsync(userInfo);
 
         Assert.Equal(user.Id, result);
+    }
+
+    // ----- Profile image sync -----
+
+    private const string AvatarDataUri = "data:image/png;base64,iVBORw0KGgo=";
+
+    private string WriteExistingAvatar(string username)
+    {
+        var dir = Path.Combine(_userConfigDir, username);
+        Directory.CreateDirectory(dir);
+        var path = Path.Combine(dir, "profile.png");
+        File.WriteAllBytes(path, Convert.FromBase64String("iVBORw0KGgo="));
+        return path;
+    }
+
+    [Fact]
+    public async Task SyncUserAsync_UnchangedAvatarWithStalePath_RelinksToCurrentPath()
+    {
+        _config.EnableProfileImageSync = true;
+        var user = CreateMockUser("testuser");
+        user.ProfileImage = new ImageInfo("/config/users/testuser/profile.png");
+        _mockUserManager.Setup(m => m.GetUserByName("testuser")).Returns(user);
+        _mockUserManager.Setup(m => m.ClearProfileImageAsync(user))
+            .Callback(() => user.ProfileImage = null)
+            .Returns(Task.CompletedTask);
+        var imagePath = WriteExistingAvatar("testuser");
+
+        var userInfo = CreateUserInfo("testuser", "jellyfin-users");
+        userInfo.Picture = AvatarDataUri;
+        await _service.SyncUserAsync(userInfo);
+
+        _mockUserManager.Verify(m => m.ClearProfileImageAsync(user), Times.Once);
+        Assert.Equal(imagePath, user.ProfileImage?.Path);
+        _mockUserManager.Verify(m => m.UpdateUserAsync(user), Times.Exactly(2));
+    }
+
+    [Fact]
+    public async Task SyncUserAsync_UnchangedAvatarWithoutRecord_RelinksWithoutClearing()
+    {
+        _config.EnableProfileImageSync = true;
+        var user = CreateMockUser("testuser");
+        _mockUserManager.Setup(m => m.GetUserByName("testuser")).Returns(user);
+        var imagePath = WriteExistingAvatar("testuser");
+
+        var userInfo = CreateUserInfo("testuser", "jellyfin-users");
+        userInfo.Picture = AvatarDataUri;
+        await _service.SyncUserAsync(userInfo);
+
+        _mockUserManager.Verify(m => m.ClearProfileImageAsync(It.IsAny<User>()), Times.Never);
+        Assert.Equal(imagePath, user.ProfileImage?.Path);
+    }
+
+    [Fact]
+    public async Task SyncUserAsync_UnchangedAvatarWithCurrentPath_LeavesRecordAlone()
+    {
+        _config.EnableProfileImageSync = true;
+        var user = CreateMockUser("testuser");
+        var imagePath = WriteExistingAvatar("testuser");
+        user.ProfileImage = new ImageInfo(imagePath);
+        _mockUserManager.Setup(m => m.GetUserByName("testuser")).Returns(user);
+
+        var userInfo = CreateUserInfo("testuser", "jellyfin-users");
+        userInfo.Picture = AvatarDataUri;
+        await _service.SyncUserAsync(userInfo);
+
+        _mockUserManager.Verify(m => m.ClearProfileImageAsync(It.IsAny<User>()), Times.Never);
+        _mockUserManager.Verify(m => m.UpdateUserAsync(user), Times.Once);
+        Assert.Equal(imagePath, user.ProfileImage?.Path);
     }
 
     // ----- Helpers -----
